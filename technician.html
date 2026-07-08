@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Technician Portal - GBP Electro-Mechanical Services</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script>
+    tailwind = { config: { corePlugins: { preflight: false } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="portal-shell">
+    <div class="portal-brand"><div class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></div><strong>GBP Electro -Mechanical Services</strong></div>
+    <aside class="portal-sidebar">
+      <nav class="portal-nav">
+        <button class="nav-link active" data-tab="dashboard"><span class="nav-icon icon-dashboard"></span>Dashboard</button>
+        <button class="nav-link" data-tab="jobs"><span class="nav-icon icon-bookings"></span>Assigned Jobs</button>
+        <button class="nav-link" data-tab="schedule"><span class="nav-icon icon-schedule"></span>Schedule</button>
+        <button class="nav-link" data-tab="customers"><span class="nav-icon icon-customer"></span>Customers</button>
+      </nav>
+    </aside>
+    <main class="portal-main">
+      <header class="portal-header"><div><h1>Technician Dashboard</h1><p>Review assigned jobs, schedules, and update job progress.</p></div><button id="logoutButton" class="secondary-button">Logout</button></header>
+      <section id="dashboardTab" class="portal-tab"><div id="statsGrid" class="stats-grid"></div><section class="panel"><div class="panel-header"><h2>Assigned Jobs</h2></div><table class="data-table"><thead><tr><th>ID</th><th>Customer</th><th>Service</th><th>Schedule</th><th>Status</th><th>Update</th></tr></thead><tbody id="jobsBody"></tbody></table></section></section>
+      <section id="jobsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Assigned Jobs</h2><p>Update progress for assigned service work.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>ID</th><th>Customer</th><th>Service</th><th>Address</th><th>Status</th><th>Update</th></tr></thead><tbody id="jobsPageBody"></tbody></table></section></section>
+      <section id="scheduleTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Schedule</h2><p>Your service schedule.</p></div></div><section class="panel"><div id="scheduleList"></div></section></section>
+      <section id="customersTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Customers</h2><p>Customer details for service work.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Address</th></tr></thead><tbody id="customersBody"></tbody></table></section></section>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script type="module" src="js/technician-page.js"></script>
+</body>
+</html>

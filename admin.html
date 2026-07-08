@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Portal - GBP Electro-Mechanical Services</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script>
+    tailwind = { config: { corePlugins: { preflight: false } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="portal-shell">
+    <div class="portal-brand">
+      <div class="brand-logo-frame">
+        <img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" />
+      </div>
+      <strong>GBP Electro -Mechanical Services</strong>
+    </div>
+    <aside class="portal-sidebar">
+      <nav class="portal-nav">
+        <button class="nav-link active" data-tab="dashboard"><span class="nav-icon icon-dashboard"></span>Dashboard</button>
+        <button class="nav-link" data-tab="bookings"><span class="nav-icon icon-bookings"></span>Bookings</button>
+        <button class="nav-link" data-tab="schedules"><span class="nav-icon icon-schedule"></span>Schedules</button>
+        <button class="nav-link" data-tab="services"><span class="nav-icon icon-service"></span>Services</button>
+        <button class="nav-link" data-tab="products"><span class="nav-icon icon-product"></span>Products</button>
+        <button class="nav-link" data-tab="technicians"><span class="nav-icon icon-tech"></span>Technicians</button>
+        <button class="nav-link" data-tab="customers"><span class="nav-icon icon-customer"></span>Customers</button>
+        <button class="nav-link" data-tab="logs"><span class="nav-icon icon-logs"></span>Logs</button>
+      </nav>
+    </aside>
+
+    <main class="portal-main">
+      <header class="portal-header">
+        <div>
+          <h1>Administrator Dashboard</h1>
+          <p>Manage services, products, technicians, bookings, and system logs.</p>
+        </div>
+        <button id="logoutButton" class="secondary-button">Logout</button>
+      </header>
+
+      <section id="dashboardTab" class="portal-tab">
+        <div id="statsGrid" class="stats-grid"></div>
+        <div class="dashboard-grid">
+          <section class="panel dashboard-main-panel">
+            <div class="panel-header">
+              <h2>Booking Requests</h2>
+              <button class="link-button" data-tab="bookings">View All Requests</button>
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr><th>ID</th><th>Customer</th><th>Service</th><th>Date</th><th>Status</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="recentBookingsBody"></tbody>
+            </table>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Technician Assignment</h2>
+            </div>
+            <div id="assignmentPreview" class="stacked-list"></div>
+            <button class="primary-button w-full" data-tab="schedules">Assign Technician</button>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Services Offered</h2>
+              <button class="link-button" data-tab="services">Manage Services</button>
+            </div>
+            <table class="data-table compact">
+              <thead>
+                <tr><th>Service</th><th>Description</th><th>Actions</th></tr>
+              </thead>
+              <tbody id="dashboardServicesBody"></tbody>
+            </table>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2>Booking Status Monitor</h2>
+              <button class="link-button" data-tab="bookings">View Report</button>
+            </div>
+            <div id="bookingMonitor" class="status-monitor"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="bookingsTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Bookings</h2>
+            <p>Approve, reject, view, and remove booking requests.</p>
+          </div>
+        </div>
+        <section class="panel">
+          <table class="data-table">
+            <thead>
+              <tr><th>ID</th><th>Customer</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="bookingsBody"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="schedulesTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Schedules</h2>
+            <p>Assign technicians to approved service requests.</p>
+          </div>
+        </div>
+        <section class="panel">
+          <form id="scheduleForm" class="form-grid">
+            <label class="form-field"><span>Booking</span><select id="scheduleBooking"></select></label>
+            <label class="form-field"><span>Technician</span><select id="scheduleTechnician"></select></label>
+            <label class="form-field"><span>Date</span><input id="scheduleDate" type="date" required /></label>
+            <label class="form-field"><span>Time</span><input id="scheduleTime" type="time" /></label>
+            <button class="primary-button">Assign Technician</button>
+          </form>
+        </section>
+      </section>
+
+      <section id="servicesTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Services</h2>
+            <p>Create and manage service offerings.</p>
+          </div>
+          <button class="primary-button" data-open="serviceModal">Add Service</button>
+        </div>
+        <section class="panel">
+          <table class="data-table">
+            <thead>
+              <tr><th>ID</th><th>Name</th><th>Type</th><th>Price</th><th>Inclusion</th><th>Exclusion</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="servicesBody"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="productsTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Products</h2>
+            <p>Create and manage air-conditioning products.</p>
+          </div>
+          <button class="primary-button" data-open="productModal">Add Product</button>
+        </div>
+        <section id="productsGrid" class="products-grid"></section>
+      </section>
+
+      <section id="techniciansTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Technicians</h2>
+            <p>Create technician records and technician login accounts.</p>
+          </div>
+          <button class="primary-button" data-open="technicianModal">Add Technician</button>
+        </div>
+        <section class="panel">
+          <table class="data-table">
+            <thead>
+              <tr><th>ID</th><th>Name</th><th>Specialty</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="techniciansBody"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="customersTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Customers</h2>
+            <p>View and manage registered customer information.</p>
+          </div>
+          <button class="primary-button" data-open="customerModal">Add Customer</button>
+        </div>
+        <section class="panel">
+          <table class="data-table">
+            <thead>
+              <tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="customersBody"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="logsTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Action Logs</h2>
+            <p>Review admin and account activity.</p>
+          </div>
+        </div>
+        <section class="panel">
+          <table class="data-table">
+            <thead>
+              <tr><th>Date</th><th>Actor</th><th>Action</th><th>Target</th></tr>
+            </thead>
+            <tbody id="logsBody"></tbody>
+          </table>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div id="serviceModal" class="modal hidden">
+    <form class="modal-card" id="serviceForm">
+      <div class="modal-header">
+        <h3>Service</h3>
+        <button type="button" class="icon-button" data-close>x</button>
+      </div>
+      <input type="hidden" id="serviceId" />
+      <label class="form-field"><span>Name</span><input id="serviceName" required /></label>
+      <label class="form-field"><span>Type</span><input id="serviceType" required /></label>
+      <label class="form-field"><span>Price</span><input id="servicePrice" required /></label>
+      <label class="form-field"><span>Inclusion</span><textarea id="serviceInclusion" required></textarea></label>
+      <label class="form-field"><span>Exclusion</span><textarea id="serviceExclusion" required></textarea></label>
+      <div class="modal-actions">
+        <button type="button" class="secondary-button" data-close>Cancel</button>
+        <button class="primary-button">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="productModal" class="modal hidden">
+    <form class="modal-card" id="productForm">
+      <div class="modal-header">
+        <h3>Product</h3>
+        <button type="button" class="icon-button" data-close>x</button>
+      </div>
+      <input type="hidden" id="productId" />
+      <input type="hidden" id="productExistingImage" />
+      <label class="form-field"><span>Name</span><input id="productName" required /></label>
+      <label class="form-field"><span>Type</span><input id="productType" required /></label>
+      <label class="form-field"><span>Brand</span><input id="productBrand" required /></label>
+      <label class="form-field"><span>Price</span><input id="productPrice" required /></label>
+      <label class="form-field"><span>Stocks</span><input id="productStocks" type="number" min="0" required /></label>
+      <label class="form-field"><span>Horsepower</span><input id="productHorsepower" required /></label>
+      <label class="form-field"><span>Image</span><input id="productImage" type="file" accept="image/*" /></label>
+      <div class="modal-actions">
+        <button type="button" class="secondary-button" data-close>Cancel</button>
+        <button class="primary-button">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="technicianModal" class="modal hidden">
+    <form class="modal-card" id="technicianForm">
+      <div class="modal-header">
+        <h3>Technician</h3>
+        <button type="button" class="icon-button" data-close>x</button>
+      </div>
+      <input type="hidden" id="technicianId" />
+      <label class="form-field"><span>Name</span><input id="technicianName" required /></label>
+      <label class="form-field"><span>Specialty</span><input id="technicianSpecialty" required /></label>
+      <label class="form-field"><span>Status</span><select id="technicianStatus"><option>Active</option><option>Inactive</option></select></label>
+      <label class="form-field"><span>Login Email</span><input id="technicianEmail" type="email" /></label>
+      <label class="form-field"><span>Temporary Password</span><input id="technicianPassword" type="password" /></label>
+      <div class="modal-actions">
+        <button type="button" class="secondary-button" data-close>Cancel</button>
+        <button class="primary-button">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="customerModal" class="modal hidden">
+    <form class="modal-card" id="customerForm">
+      <div class="modal-header">
+        <h3>Customer</h3>
+        <button type="button" class="icon-button" data-close>x</button>
+      </div>
+      <input type="hidden" id="customerId" />
+      <label class="form-field"><span>Name</span><input id="customerName" required /></label>
+      <label class="form-field"><span>Phone</span><input id="customerPhone" required /></label>
+      <label class="form-field"><span>Email</span><input id="customerEmail" type="email" required /></label>
+      <label class="form-field"><span>Address</span><input id="customerAddress" required /></label>
+      <div class="modal-actions">
+        <button type="button" class="secondary-button" data-close>Cancel</button>
+        <button class="primary-button">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script type="module" src="js/admin-page.js"></script>
+</body>
+</html>

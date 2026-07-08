@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Customer Portal - GBP Electro-Mechanical Services</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script>
+    tailwind = { config: { corePlugins: { preflight: false } } };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="portal-shell">
+    <div class="portal-brand"><div class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></div><strong>GBP Electro -Mechanical Services</strong></div>
+    <aside class="portal-sidebar">
+      <nav class="portal-nav">
+        <button class="nav-link active" data-tab="dashboard"><span class="nav-icon icon-dashboard"></span>Dashboard</button>
+        <button class="nav-link" data-tab="book"><span class="nav-icon icon-bookings"></span>Book Service</button>
+        <button class="nav-link" data-tab="bookings"><span class="nav-icon icon-schedule"></span>My Bookings</button>
+        <button class="nav-link" data-tab="services"><span class="nav-icon icon-service"></span>Services</button>
+        <button class="nav-link" data-tab="products"><span class="nav-icon icon-product"></span>Products</button>
+      </nav>
+    </aside>
+    <main class="portal-main">
+      <header class="portal-header"><div><h1>Customer Dashboard</h1><p>Browse services, submit booking requests, and track your requests.</p></div><button id="logoutButton" class="secondary-button">Logout</button></header>
+      <section id="dashboardTab" class="portal-tab">
+        <div id="statsGrid" class="stats-grid"></div>
+        <section class="panel"><div class="panel-header"><h2>Recent Bookings</h2></div><table class="data-table"><thead><tr><th>ID</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th></tr></thead><tbody id="recentBookingsBody"></tbody></table></section>
+      </section>
+      <section id="bookTab" class="portal-tab hidden">
+        <div class="page-heading"><div><h2>Book a Service</h2><p>Submit a request and wait for admin approval.</p></div></div>
+        <section class="panel">
+          <form id="bookingForm" class="form-grid">
+            <label class="form-field"><span>Full Name</span><input id="bookingCustomer" required /></label>
+            <label class="form-field"><span>Phone</span><input id="bookingPhone" required /></label>
+            <label class="form-field"><span>Email</span><input id="bookingEmail" type="email" required /></label>
+            <label class="form-field"><span>Service</span><select id="bookingService" required></select></label>
+            <label class="form-field"><span>Preferred Date</span><input id="bookingDate" type="date" required /></label>
+            <label class="form-field"><span>Preferred Time</span><input id="bookingTime" type="time" /></label>
+            <label class="form-field full"><span>Address</span><input id="bookingAddress" required /></label>
+            <button class="primary-button">Submit Booking Request</button>
+          </form>
+        </section>
+      </section>
+      <section id="bookingsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>My Bookings</h2><p>Track your booking status.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>ID</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th></tr></thead><tbody id="bookingsBody"></tbody></table></section></section>
+      <section id="servicesTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Services</h2><p>Available services you can book.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>Name</th><th>Type</th><th>Price</th><th>Inclusion</th><th>Exclusion</th><th>Action</th></tr></thead><tbody id="servicesBody"></tbody></table></section></section>
+      <section id="productsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Products</h2><p>Available air-conditioning products.</p></div></div><section id="productsGrid" class="products-grid"></section></section>
+    </main>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script type="module" src="js/customer-page.js"></script>
+</body>
+</html>

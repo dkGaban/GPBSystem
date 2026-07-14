@@ -160,6 +160,10 @@ body {
   color: #64748b;
 }
 
+.pre-line {
+  white-space: pre-line;
+}
+
 a.primary-button,
 a.secondary-button {
   text-decoration: none;
@@ -916,6 +920,16 @@ a.secondary-button {
   color: #334155;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.service-list {
+  display: grid;
+  gap: 4px;
+}
+
+.service-list strong,
+.service-list span {
+  display: block;
 }
 
 .product-image {

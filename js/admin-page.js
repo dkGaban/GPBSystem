@@ -21,7 +21,7 @@ import {
   updateService,
   updateTechnician
 } from "./api.js";
-import { bindTabs, escapeHtml, fileToDataUrl, logout, peso, renderProducts, requireRole, statusBadge, toast } from "./portal-utils.js";
+import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, peso, renderProducts, requireRole, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("admin");
 let services = [];
@@ -120,7 +120,7 @@ function renderTechnicians() {
 
 function renderCustomers() {
   document.getElementById("customersBody").innerHTML = customers.length
-    ? customers.map((customer) => `<tr><td>${customer.id}</td><td>${escapeHtml(customer.name)}</td><td>${escapeHtml(customer.phone)}</td><td>${escapeHtml(customer.email)}</td><td>${escapeHtml(customer.address)}</td><td><button class="tiny-button secondary-button" data-edit-customer="${customer.id}">Edit</button><button class="tiny-button danger-button" data-delete-customer="${customer.id}">Delete</button></td></tr>`).join("")
+    ? customers.map((customer) => `<tr><td>${customer.id}</td><td>${escapeHtml(customer.name)}</td><td>${escapeHtml(customer.phone)}</td><td>${escapeHtml(customer.email)}</td><td class="pre-line">${escapeHtml(customer.address)}</td><td><button class="tiny-button secondary-button" data-edit-customer="${customer.id}">Edit</button><button class="tiny-button danger-button" data-delete-customer="${customer.id}">Delete</button></td></tr>`).join("")
     : `<tr><td colspan="6" class="text-center text-slate-500">No customers yet.</td></tr>`;
 }
 
@@ -209,9 +209,16 @@ async function saveService(event) {
   event.preventDefault();
   const id = $("serviceId").value;
   const payload = { name: $("serviceName").value.trim(), type: $("serviceType").value.trim(), price: $("servicePrice").value.trim(), inclusion: $("serviceInclusion").value.trim(), exclusion: $("serviceExclusion").value.trim() };
-  id ? await updateService(id, payload) : await createService(payload);
-  closeModals();
-  await loadAll();
+  if (!payload.name) return toast("Service name is required.");
+  if (!payload.type) return toast("Service type is required.");
+  if (payload.price === "" || Number(payload.price) < 0) return toast("Price cannot be negative.");
+  try {
+    id ? await updateService(id, payload) : await createService(payload);
+    closeModals();
+    await loadAll();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function fillProduct(id) {
@@ -276,9 +283,17 @@ async function saveCustomer(event) {
   event.preventDefault();
   const id = $("customerId").value;
   const payload = { name: $("customerName").value.trim(), phone: $("customerPhone").value.trim(), email: $("customerEmail").value.trim(), address: $("customerAddress").value.trim() };
-  id ? await updateCustomer(id, payload) : await createCustomer(payload);
-  closeModals();
-  await loadAll();
+  if (!isValidPhilippineMobile(payload.phone)) {
+    toast("Contact number must contain exactly 11 digits.");
+    return;
+  }
+  try {
+    id ? await updateCustomer(id, payload) : await createCustomer(payload);
+    closeModals();
+    await loadAll();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function saveSchedule(event) {

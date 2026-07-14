@@ -204,6 +204,7 @@ export function renderServiceRow(service) {
 }
 
 export function renderServiceCard(service) {
+  const hasDetails = String(service.inclusion || service.description || "").trim() || String(service.exclusion || "").trim();
   return `
     <article class="service-card">
       <div class="service-card-header">
@@ -212,16 +213,12 @@ export function renderServiceCard(service) {
       </div>
       <h3>${escapeHtml(service.name)}</h3>
       <p class="service-price">${escapeHtml(formatPesoPrice(service.price))}</p>
-      <div class="service-details">
+      ${hasDetails ? `<div class="service-details">
         <div>
-          <span>Includes</span>
-          <p>${escapeHtml(service.inclusion || service.description || "No inclusions listed.")}</p>
+          ${String(service.inclusion || service.description || "").trim() ? `<span>Included</span><p>${escapeHtml(service.inclusion || service.description)}</p>` : ""}
+          ${String(service.exclusion || "").trim() ? `<span>Not Included</span><p>${escapeHtml(service.exclusion)}</p>` : ""}
         </div>
-        <div>
-          <span>Excludes</span>
-          <p>${escapeHtml(service.exclusion || "No exclusions listed.")}</p>
-        </div>
-      </div>
+      </div>` : ""}
       <div class="card-actions">
         <button class="tiny-button secondary-button" data-action="edit-service" data-id="${service.id}">Edit</button>
         <button class="tiny-button danger-button" data-action="delete-service" data-id="${service.id}">Delete</button>
@@ -244,7 +241,7 @@ export function renderCustomers() {
           <td>${escapeHtml(customer.name)}</td>
           <td>${escapeHtml(customer.phone)}</td>
           <td>${escapeHtml(customer.email)}</td>
-          <td>${escapeHtml(customer.address)}</td>
+          <td class="pre-line">${escapeHtml(customer.address)}</td>
           <td>
             <div class="flex flex-wrap gap-2">
               ${currentRole() === "admin" ? `<button class="tiny-button secondary-button" data-action="edit-customer" data-id="${customer.id}">Edit</button>

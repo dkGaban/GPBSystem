@@ -34,6 +34,55 @@ function verifyPassword(password, salt, hash) {
   return hashPassword(password, salt).hash === hash;
 }
 
+function isValidPhilippineMobile(phone) {
+  return /^09\d{9}$/.test(String(phone || "").trim());
+}
+
+function isStrongPassword(password) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(String(password || ""));
+}
+
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function formatAddress(parts = {}) {
+  const values = [
+    parts.houseNumber,
+    parts.street,
+    parts.barangay ? `Barangay ${String(parts.barangay).replace(/^barangay\s+/i, "")}` : "",
+    parts.city,
+    parts.province,
+    parts.zipCode
+  ];
+  return values.map((value) => String(value || "").trim()).filter(Boolean).join(",\n");
+}
+
+function addressFromBody(body = {}) {
+  const structured = {
+    houseNumber: body.houseNumber || body.addressHouseNumber,
+    street: body.street || body.addressStreet,
+    barangay: body.barangay || body.addressBarangay,
+    city: body.city || body.addressCity,
+    province: body.province || body.addressProvince,
+    zipCode: body.zipCode || body.addressZipCode
+  };
+  const hasStructuredAddress = Object.values(structured).some((value) => String(value || "").trim());
+  return {
+    ...structured,
+    address: hasStructuredAddress ? formatAddress(structured) : String(body.address || "").trim()
+  };
+}
+
+function validateServicePayload({ name, type, price }) {
+  if (!String(name || "").trim()) return "Service name is required.";
+  if (!String(type || "").trim()) return "Service type is required.";
+  if (price === undefined || price === null || String(price).trim() === "") return "Price is required.";
+  const amount = Number(price);
+  if (!Number.isFinite(amount) || amount < 0) return "Price cannot be negative.";
+  return "";
+}
+
 function createToken(user) {
   const payload = Buffer.from(JSON.stringify({ id: user.id, role: user.role, email: user.email, username: user.username })).toString("base64url");
   const signature = crypto.createHmac("sha256", process.env.APP_SECRET || "dev-secret-change-later").update(payload).digest("base64url");
@@ -202,6 +251,18 @@ async function ensureSchema() {
       ALTER TABLE Bookings ADD Email NVARCHAR(150) NULL;
     IF COL_LENGTH('Schedules', 'ScheduleTime') IS NULL
       ALTER TABLE Schedules ADD ScheduleTime NVARCHAR(50) NULL;
+    IF COL_LENGTH('Customers', 'HouseNumber') IS NULL
+      ALTER TABLE Customers ADD HouseNumber NVARCHAR(50) NULL;
+    IF COL_LENGTH('Customers', 'Street') IS NULL
+      ALTER TABLE Customers ADD Street NVARCHAR(150) NULL;
+    IF COL_LENGTH('Customers', 'Barangay') IS NULL
+      ALTER TABLE Customers ADD Barangay NVARCHAR(150) NULL;
+    IF COL_LENGTH('Customers', 'City') IS NULL
+      ALTER TABLE Customers ADD City NVARCHAR(150) NULL;
+    IF COL_LENGTH('Customers', 'Province') IS NULL
+      ALTER TABLE Customers ADD Province NVARCHAR(150) NULL;
+    IF COL_LENGTH('Customers', 'ZipCode') IS NULL
+      ALTER TABLE Customers ADD ZipCode NVARCHAR(20) NULL;
   `);
 
   const adminPassword = hashPassword("admin", "gbp-default-admin-salt");
@@ -236,15 +297,29 @@ app.get("/api/health", async (req, res) => {
 });
 
 app.post("/api/auth/register", async (req, res) => {
-  const { fullName, email, password, phone = "", address = "" } = req.body;
-  const role = "customer";
+  const { fullName, password, phone = "" } = req.body;
+  const email = normalizeEmail(req.body.email);
+  const role = req.body.role === "admin" ? "admin" : "customer";
+  const address = addressFromBody(req.body);
 
   if (!fullName || !email || !password) {
     return res.status(400).json({ message: "Complete the registration form." });
   }
+  if (!isValidPhilippineMobile(phone)) {
+    return res.status(400).json({ message: "Please enter a valid Philippine mobile number." });
+  }
+  if (!isStrongPassword(password)) {
+    return res.status(400).json({ message: "Password must be at least 8 characters and include uppercase, lowercase, and a number." });
+  }
+  if (role === "customer" && !address.address) {
+    return res.status(400).json({ message: "Complete the customer address fields." });
+  }
 
   try {
     const pool = await getPool();
+    const existing = await pool.request().input("Email", sql.NVarChar(150), email).query("SELECT TOP 1 Id FROM Users WHERE Email = @Email");
+    if (existing.recordset.length) return res.status(409).json({ message: "This email is already registered." });
+
     const { salt, hash } = hashPassword(password);
     const result = await pool
       .request()
@@ -267,25 +342,32 @@ app.post("/api/auth/register", async (req, res) => {
         .input("Name", sql.NVarChar(100), fullName)
         .input("Phone", sql.NVarChar(50), phone)
         .input("Email", sql.NVarChar(100), email.toLowerCase())
-        .input("Address", sql.NVarChar(255), address)
+        .input("Address", sql.NVarChar(255), address.address)
+        .input("HouseNumber", sql.NVarChar(50), address.houseNumber || "")
+        .input("Street", sql.NVarChar(150), address.street || "")
+        .input("Barangay", sql.NVarChar(150), address.barangay || "")
+        .input("City", sql.NVarChar(150), address.city || "")
+        .input("Province", sql.NVarChar(150), address.province || "")
+        .input("ZipCode", sql.NVarChar(20), address.zipCode || "")
         .query(`
           IF NOT EXISTS (SELECT 1 FROM Customers WHERE Email = @Email)
           BEGIN
-            INSERT INTO Customers (Name, Phone, Email, Address)
-            VALUES (@Name, @Phone, @Email, @Address)
+            INSERT INTO Customers (Name, Phone, Email, Address, HouseNumber, Street, Barangay, City, Province, ZipCode)
+            VALUES (@Name, @Phone, @Email, @Address, @HouseNumber, @Street, @Barangay, @City, @Province, @ZipCode)
           END
         `);
     }
     await logAction(`Registered ${role} account for ${fullName}`, email, "Users", user.id);
     res.status(201).json({ user, token: createToken(user) });
   } catch (error) {
-    const message = error.message.includes("UNIQUE") ? "That email is already registered." : error.message;
+    const message = error.message.includes("UNIQUE") ? "This email is already registered." : error.message;
     res.status(500).json({ message });
   }
 });
 
 app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
+  const { password } = req.body;
+  const email = normalizeEmail(req.body.email);
   if (!email || !password) return res.status(400).json({ message: "Enter your username/email and password." });
 
   try {
@@ -300,7 +382,8 @@ app.post("/api/auth/login", async (req, res) => {
       `);
 
     const user = result.recordset[0];
-    if (!user || !verifyPassword(password, user.passwordSalt, user.passwordHash)) {
+    if (!user) return res.status(404).json({ message: "Your account does not exist." });
+    if (!verifyPassword(password, user.passwordSalt, user.passwordHash)) {
       return res.status(401).json({ message: "Invalid email or password." });
     }
 
@@ -338,7 +421,25 @@ app.get("/api/customers", requireUser, async (req, res) => {
   try {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT Id AS id, Name AS name, Phone AS phone, Email AS email, Address AS address
+      SELECT
+        Id AS id,
+        Name AS name,
+        Phone AS phone,
+        Email AS email,
+        COALESCE(NULLIF(CONCAT(
+          NULLIF(HouseNumber, ''), CASE WHEN NULLIF(HouseNumber, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
+          NULLIF(Street, ''), CASE WHEN NULLIF(Street, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
+          CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN CONCAT('Barangay ', REPLACE(Barangay, 'Barangay ', '')) ELSE NULL END, CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
+          NULLIF(City, ''), CASE WHEN NULLIF(City, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
+          NULLIF(Province, ''), CASE WHEN NULLIF(Province, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
+          NULLIF(ZipCode, '')
+        ), ''), Address) AS address,
+        HouseNumber AS houseNumber,
+        Street AS street,
+        Barangay AS barangay,
+        City AS city,
+        Province AS province,
+        ZipCode AS zipCode
       FROM Customers
       ORDER BY Id DESC
     `);
@@ -349,8 +450,11 @@ app.get("/api/customers", requireUser, async (req, res) => {
 });
 
 app.post("/api/customers", requireUser, async (req, res) => {
-  const { name, phone, email, address } = req.body;
-  if (!name || !phone || !email || !address) return res.status(400).json({ message: "Missing required customer fields." });
+  const { name, phone } = req.body;
+  const email = normalizeEmail(req.body.email);
+  const address = addressFromBody(req.body);
+  if (!name || !phone || !email || !address.address) return res.status(400).json({ message: "Missing required customer fields." });
+  if (!isValidPhilippineMobile(phone)) return res.status(400).json({ message: "Contact number must contain exactly 11 digits." });
 
   try {
     const pool = await getPool();
@@ -359,7 +463,7 @@ app.post("/api/customers", requireUser, async (req, res) => {
       .input("Name", sql.NVarChar(100), name)
       .input("Phone", sql.NVarChar(50), phone)
       .input("Email", sql.NVarChar(100), email)
-      .input("Address", sql.NVarChar(255), address)
+      .input("Address", sql.NVarChar(255), address.address)
       .query(`
         INSERT INTO Customers (Name, Phone, Email, Address)
         OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Phone AS phone, INSERTED.Email AS email, INSERTED.Address AS address
@@ -373,8 +477,11 @@ app.post("/api/customers", requireUser, async (req, res) => {
 });
 
 app.put("/api/customers/:id", requireUser, async (req, res) => {
-  const { name, phone, email, address } = req.body;
-  if (!name || !phone || !email || !address) return res.status(400).json({ message: "Missing required customer fields." });
+  const { name, phone } = req.body;
+  const email = normalizeEmail(req.body.email);
+  const address = addressFromBody(req.body);
+  if (!name || !phone || !email || !address.address) return res.status(400).json({ message: "Missing required customer fields." });
+  if (!isValidPhilippineMobile(phone)) return res.status(400).json({ message: "Contact number must contain exactly 11 digits." });
 
   try {
     const pool = await getPool();
@@ -384,7 +491,7 @@ app.put("/api/customers/:id", requireUser, async (req, res) => {
       .input("Name", sql.NVarChar(100), name)
       .input("Phone", sql.NVarChar(50), phone)
       .input("Email", sql.NVarChar(100), email)
-      .input("Address", sql.NVarChar(255), address)
+      .input("Address", sql.NVarChar(255), address.address)
       .query(`
         UPDATE Customers
         SET Name = @Name, Phone = @Phone, Email = @Email, Address = @Address
@@ -549,6 +656,9 @@ app.post("/api/bookings", requireUser, async (req, res) => {
   if (!customer || !service || !address || !preferredDate) {
     return res.status(400).json({ message: "Missing required booking fields." });
   }
+  if (phone && !isValidPhilippineMobile(phone)) {
+    return res.status(400).json({ message: "Please enter a valid Philippine mobile number." });
+  }
 
   try {
     const pool = await getPool();
@@ -712,21 +822,23 @@ app.get("/api/services", async (req, res) => {
 });
 
 app.post("/api/services", requireUser, requireAdmin, async (req, res) => {
-  const { name, type, price, inclusion, exclusion } = req.body;
+  const { name, type, price, inclusion = "", exclusion = "" } = req.body;
 
-  if (!name || !type || price === undefined || !inclusion || !exclusion) {
-    return res.status(400).json({ message: "Missing required service fields." });
-  }
+  const validationMessage = validateServicePayload({ name, type, price });
+  if (validationMessage) return res.status(400).json({ message: validationMessage });
 
   try {
     const pool = await getPool();
+    const existing = await pool.request().input("Name", sql.NVarChar(100), name.trim()).query("SELECT TOP 1 Id FROM Services WHERE LOWER(Name) = LOWER(@Name)");
+    if (existing.recordset.length) return res.status(409).json({ message: "A service with this name already exists." });
+
     const result = await pool
       .request()
-      .input("Name", sql.NVarChar(100), name)
-      .input("Type", sql.NVarChar(100), type)
+      .input("Name", sql.NVarChar(100), name.trim())
+      .input("Type", sql.NVarChar(100), type.trim())
       .input("Price", sql.Decimal(10, 2), Number(price))
-      .input("Inclusion", sql.NVarChar(sql.MAX), inclusion)
-      .input("Exclusion", sql.NVarChar(sql.MAX), exclusion)
+      .input("Inclusion", sql.NVarChar(sql.MAX), String(inclusion || "").trim())
+      .input("Exclusion", sql.NVarChar(sql.MAX), String(exclusion || "").trim())
       .query(`
         INSERT INTO Services (Name, Type, Price, Inclusion, Exclusion)
         OUTPUT
@@ -747,22 +859,28 @@ app.post("/api/services", requireUser, requireAdmin, async (req, res) => {
 });
 
 app.put("/api/services/:id", requireUser, requireAdmin, async (req, res) => {
-  const { name, type, price, inclusion, exclusion } = req.body;
+  const { name, type, price, inclusion = "", exclusion = "" } = req.body;
 
-  if (!name || !type || price === undefined || !inclusion || !exclusion) {
-    return res.status(400).json({ message: "Missing required service fields." });
-  }
+  const validationMessage = validateServicePayload({ name, type, price });
+  if (validationMessage) return res.status(400).json({ message: validationMessage });
 
   try {
     const pool = await getPool();
+    const duplicate = await pool
+      .request()
+      .input("Id", sql.Int, Number(req.params.id))
+      .input("Name", sql.NVarChar(100), name.trim())
+      .query("SELECT TOP 1 Id FROM Services WHERE LOWER(Name) = LOWER(@Name) AND Id <> @Id");
+    if (duplicate.recordset.length) return res.status(409).json({ message: "A service with this name already exists." });
+
     const result = await pool
       .request()
       .input("Id", sql.Int, Number(req.params.id))
-      .input("Name", sql.NVarChar(100), name)
-      .input("Type", sql.NVarChar(100), type)
+      .input("Name", sql.NVarChar(100), name.trim())
+      .input("Type", sql.NVarChar(100), type.trim())
       .input("Price", sql.Decimal(10, 2), Number(price))
-      .input("Inclusion", sql.NVarChar(sql.MAX), inclusion)
-      .input("Exclusion", sql.NVarChar(sql.MAX), exclusion)
+      .input("Inclusion", sql.NVarChar(sql.MAX), String(inclusion || "").trim())
+      .input("Exclusion", sql.NVarChar(sql.MAX), String(exclusion || "").trim())
       .query(`
         UPDATE Services
         SET

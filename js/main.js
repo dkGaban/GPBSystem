@@ -124,7 +124,12 @@ export function cacheElements() {
     "registerEmail",
     "registerPassword",
     "registerPhone",
-    "registerAddress",
+    "registerHouseNumber",
+    "registerStreet",
+    "registerBarangay",
+    "registerCity",
+    "registerProvince",
+    "registerZipCode",
     "continueGuestButton",
     "logoutButton",
   "sessionUserName",
@@ -270,7 +275,12 @@ async function handleRegister(event) {
       email: els.registerEmail.value.trim(),
       password: els.registerPassword.value,
       phone: els.registerPhone.value.trim(),
-      address: els.registerAddress.value.trim(),
+      houseNumber: els.registerHouseNumber.value.trim(),
+      street: els.registerStreet.value.trim(),
+      barangay: els.registerBarangay.value.trim(),
+      city: els.registerCity.value.trim(),
+      province: els.registerProvince.value.trim(),
+      zipCode: els.registerZipCode.value.trim(),
       role: "customer"
     });
     if (!sessionMatchesPortal(session)) return;

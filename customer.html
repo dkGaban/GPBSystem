@@ -36,7 +36,7 @@
         <section class="panel">
           <form id="bookingForm" class="form-grid">
             <label class="form-field"><span>Full Name</span><input id="bookingCustomer" required /></label>
-            <label class="form-field"><span>Phone</span><input id="bookingPhone" required /></label>
+            <label class="form-field"><span>Phone</span><input id="bookingPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /></label>
             <label class="form-field"><span>Email</span><input id="bookingEmail" type="email" required /></label>
             <label class="form-field"><span>Service</span><select id="bookingService" required></select></label>
             <label class="form-field"><span>Preferred Date</span><input id="bookingDate" type="date" required /></label>

@@ -43,7 +43,7 @@
 
       <form id="loginForm" class="auth-form">
         <label class="form-field">
-          <span>Email or Username</span>
+          <span>Email</span>
           <input id="loginEmail" required />
         </label>
         <label class="form-field">
@@ -64,15 +64,35 @@
         </label>
         <label class="form-field">
           <span>Password</span>
-          <input id="registerPassword" type="password" minlength="6" required />
+          <input id="registerPassword" type="password" minlength="8" required />
         </label>
         <label class="form-field">
           <span>Phone Number</span>
-          <input id="registerPhone" required />
+          <input id="registerPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required />
         </label>
         <label class="form-field">
-          <span>Address</span>
-          <input id="registerAddress" required />
+          <span>House Number</span>
+          <input id="registerHouseNumber" required />
+        </label>
+        <label class="form-field">
+          <span>Street</span>
+          <input id="registerStreet" required />
+        </label>
+        <label class="form-field">
+          <span>Barangay</span>
+          <input id="registerBarangay" required />
+        </label>
+        <label class="form-field">
+          <span>City / Municipality</span>
+          <input id="registerCity" required />
+        </label>
+        <label class="form-field">
+          <span>Province</span>
+          <input id="registerProvince" required />
+        </label>
+        <label class="form-field">
+          <span>ZIP Code</span>
+          <input id="registerZipCode" inputmode="numeric" required />
         </label>
         <button type="submit" class="primary-button w-full">Create Customer Account</button>
       </form>

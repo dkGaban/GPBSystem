@@ -56,6 +56,23 @@ export function statusBadge(status) {
   return `<span class="badge badge-${key}">${escapeHtml(status || "Pending")}</span>`;
 }
 
+export function isValidPhilippineMobile(phone) {
+  return /^09\d{9}$/.test(String(phone || "").trim());
+}
+
+export function isStrongPassword(password) {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(String(password || ""));
+}
+
+export function serviceList(label, value, marker) {
+  const items = String(value || "")
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  if (!items.length) return "";
+  return `<div class="service-list"><strong>${escapeHtml(label)}:</strong>${items.map((item) => `<span>${marker} ${escapeHtml(item)}</span>`).join("")}</div>`;
+}
+
 export function fileToDataUrl(input, existing = "") {
   const file = input.files?.[0];
   if (!file) return Promise.resolve(existing);
@@ -86,10 +103,22 @@ export function renderProducts(products, options = {}) {
             <dl class="product-specs"><div><dt>Stocks</dt><dd>${escapeHtml(product.stocks)}</dd></div><div><dt>Horsepower</dt><dd>${escapeHtml(product.horsepower)}</dd></div></dl>
           </div>
           <div class="card-actions">
-            ${options.admin ? `<button class="tiny-button secondary-button" data-edit-product="${product.id}">Edit</button><button class="tiny-button danger-button" data-delete-product="${product.id}">Delete</button>` : `<a class="tiny-button secondary-button" href="index.html">Login to Book</a>`}
+            ${productActions(product, options)}
           </div>
         </article>
       `
     )
     .join("");
+}
+
+function productActions(product, options) {
+  if (options.admin) {
+    return `<button class="tiny-button secondary-button" data-edit-product="${product.id}">Edit</button><button class="tiny-button danger-button" data-delete-product="${product.id}">Delete</button>`;
+  }
+
+  if (options.customer) {
+    return `<button class="tiny-button secondary-button" data-book-product="${escapeHtml(product.name)}">Book</button>`;
+  }
+
+  return `<a class="tiny-button secondary-button" href="index.html">Login to Book</a>`;
 }

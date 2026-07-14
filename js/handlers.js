@@ -137,7 +137,18 @@ export async function handleServiceSave(event) {
     exclusion: els.serviceExclusion.value.trim()
   };
 
-  if (!service.name || !service.type || !service.price || !service.inclusion || !service.exclusion) return;
+  if (!service.name) {
+    showToast("Service name is required.", els);
+    return;
+  }
+  if (!service.type) {
+    showToast("Service type is required.", els);
+    return;
+  }
+  if (service.price === "" || Number(service.price) < 0) {
+    showToast("Price cannot be negative.", els);
+    return;
+  }
 
   try {
     const wasExisting = Boolean(id);

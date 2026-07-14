@@ -1,5 +1,5 @@
 import { createBooking, getBookings, getProducts, getServices } from "./api.js";
-import { bindTabs, escapeHtml, logout, peso, renderProducts, requireRole, statusBadge, toast } from "./portal-utils.js";
+import { bindTabs, escapeHtml, isValidPhilippineMobile, logout, peso, renderProducts, requireRole, serviceList, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("customer");
 let services = [];
@@ -17,6 +17,10 @@ async function init() {
     if (event.target.closest("[data-book-service]")) {
       document.getElementById("bookingService").value = event.target.closest("[data-book-service]").dataset.bookService;
       document.querySelector("[data-tab='book']").click();
+    }
+    if (event.target.closest("[data-book-product]")) {
+      document.querySelector("[data-tab='book']").click();
+      toast("Select the service you want to book for this product.");
     }
   });
   await loadAll();
@@ -38,9 +42,9 @@ function render() {
   const rows = bookings.length ? bookings.map((booking) => `<tr><td>${booking.id}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}</td></tr>`).join("") : `<tr><td colspan="5" class="text-center text-slate-500">No bookings yet.</td></tr>`;
   document.getElementById("bookingsBody").innerHTML = rows;
   document.getElementById("recentBookingsBody").innerHTML = rows;
-  document.getElementById("servicesBody").innerHTML = services.length ? services.map((service) => `<tr><td>${escapeHtml(service.name)}</td><td>${escapeHtml(service.type)}</td><td>${peso(service.price)}</td><td>${escapeHtml(service.inclusion)}</td><td>${escapeHtml(service.exclusion)}</td><td><button class="tiny-button secondary-button" data-book-service="${escapeHtml(service.name)}">Book</button></td></tr>`).join("") : `<tr><td colspan="6" class="text-center text-slate-500">No services available.</td></tr>`;
+  document.getElementById("servicesBody").innerHTML = services.length ? services.map((service) => `<tr><td>${escapeHtml(service.name)}</td><td>${escapeHtml(service.type)}</td><td>${peso(service.price)}</td><td>${serviceList("Included", service.inclusion, "&#10003;")}</td><td>${serviceList("Not Included", service.exclusion, "&#10007;")}</td><td><button class="tiny-button secondary-button" data-book-service="${escapeHtml(service.name)}">Book</button></td></tr>`).join("") : `<tr><td colspan="6" class="text-center text-slate-500">No services available.</td></tr>`;
   document.getElementById("bookingService").innerHTML = services.map((service) => `<option value="${escapeHtml(service.name)}">${escapeHtml(service.name)}</option>`).join("");
-  renderProducts(products);
+  renderProducts(products, { customer: true });
 }
 
 function fillCustomerDefaults() {
@@ -50,6 +54,10 @@ function fillCustomerDefaults() {
 
 async function saveBooking(event) {
   event.preventDefault();
+  if (!isValidPhilippineMobile($("bookingPhone").value.trim())) {
+    toast("Contact number must contain exactly 11 digits.");
+    return;
+  }
   try {
     await createBooking({
       customer: $("bookingCustomer").value.trim(),

@@ -114,8 +114,8 @@ function renderServices() {
 
 function renderTechnicians() {
   document.getElementById("techniciansBody").innerHTML = technicians.length
-    ? technicians.map((tech) => `<tr><td>${tech.id}</td><td>${escapeHtml(tech.name)}</td><td>${escapeHtml(tech.specialty)}</td><td>${statusBadge(tech.status)}</td><td><button class="tiny-button secondary-button" data-edit-technician="${tech.id}">Edit</button><button class="tiny-button danger-button" data-delete-technician="${tech.id}">Delete</button></td></tr>`).join("")
-    : `<tr><td colspan="5" class="text-center text-slate-500">No technicians yet.</td></tr>`;
+    ? technicians.map((tech) => `<tr><td>${tech.id}</td><td>${escapeHtml(tech.name)}</td><td>${escapeHtml(tech.phoneNumber)}</td><td>${escapeHtml(tech.email)}</td><td>${escapeHtml(tech.specialty)}</td><td>${statusBadge(tech.status)}</td><td><button class="tiny-button secondary-button" data-edit-technician="${tech.id}">Edit</button><button class="tiny-button danger-button" data-delete-technician="${tech.id}">Delete</button></td></tr>`).join("")
+    : `<tr><td colspan="7" class="text-center text-slate-500">No technicians yet.</td></tr>`;
 }
 
 function renderCustomers() {
@@ -249,7 +249,9 @@ function fillTechnician(id) {
   $("technicianName").value = item.name || "";
   $("technicianSpecialty").value = item.specialty || "";
   $("technicianStatus").value = item.status || "Active";
-  $("technicianEmail").value = "";
+  $("technicianPhone").value = item.phoneNumber || "";
+  $("technicianEmail").value = item.email || "";
+  $("technicianAddress").value = item.address || "";
   $("technicianPassword").value = "";
   openModal("technicianModal");
 }
@@ -257,16 +259,35 @@ function fillTechnician(id) {
 async function saveTechnician(event) {
   event.preventDefault();
   const id = $("technicianId").value;
+  const photoInput = $("technicianPhoto");
+  const photo = photoInput.files?.[0];
+  if (photo && !/\.(jpe?g|png)$/i.test(photo.name)) {
+    toast("Profile photo must be a JPG, JPEG, or PNG file.");
+    return;
+  }
+  const phoneNumber = $("technicianPhone").value.trim();
+  if (!isValidPhilippineMobile(phoneNumber)) {
+    toast("Please enter a valid Philippine mobile number.");
+    return;
+  }
   const payload = {
     name: $("technicianName").value.trim(),
     specialty: $("technicianSpecialty").value.trim(),
     status: $("technicianStatus").value,
+    phoneNumber,
     email: $("technicianEmail").value.trim(),
-    password: $("technicianPassword").value
+    address: $("technicianAddress").value.trim(),
+    password: $("technicianPassword").value,
+    ...(photo ? { profilePhoto: { name: photo.name, data: await fileToDataUrl(photoInput) } } : {})
   };
-  id ? await updateTechnician(id, payload) : await createTechnician(payload);
-  closeModals();
-  await loadAll();
+  try {
+    id ? await updateTechnician(id, payload) : await createTechnician(payload);
+    closeModals();
+    await loadAll();
+    toast("Technician saved.");
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 function fillCustomer(id) {

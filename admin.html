@@ -166,7 +166,7 @@
         <section class="panel">
           <table class="data-table">
             <thead>
-              <tr><th>ID</th><th>Name</th><th>Specialty</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Specialty</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody id="techniciansBody"></tbody>
           </table>
@@ -261,7 +261,10 @@
       <label class="form-field"><span>Name</span><input id="technicianName" required /></label>
       <label class="form-field"><span>Specialty</span><input id="technicianSpecialty" required /></label>
       <label class="form-field"><span>Status</span><select id="technicianStatus"><option>Active</option><option>Inactive</option></select></label>
-      <label class="form-field"><span>Login Email</span><input id="technicianEmail" type="email" /></label>
+      <label class="form-field"><span>Phone Number</span><input id="technicianPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /></label>
+      <label class="form-field"><span>Email</span><input id="technicianEmail" type="email" required /></label>
+      <label class="form-field"><span>Address</span><textarea id="technicianAddress" required></textarea></label>
+      <label class="form-field"><span>Profile Photo</span><input id="technicianPhoto" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" /></label>
       <label class="form-field"><span>Temporary Password</span><input id="technicianPassword" type="password" /></label>
       <div class="modal-actions">
         <button type="button" class="secondary-button" data-close>Cancel</button>

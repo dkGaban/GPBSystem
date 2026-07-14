@@ -116,6 +116,17 @@ export function updateTechnician(id, technician) {
   });
 }
 
+export function getMyTechnicianProfile() {
+  return requestJson("/api/technicians/me");
+}
+
+export function updateMyTechnicianProfile(profile) {
+  return requestJson("/api/technicians/me", {
+    method: "PUT",
+    body: JSON.stringify(profile)
+  });
+}
+
 export async function removeTechnician(id) {
   await requestJson(`/api/technicians/${id}`, { method: "DELETE" });
 }

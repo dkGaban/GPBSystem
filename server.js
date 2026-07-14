@@ -1,6 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
+const fs = require("fs/promises");
+const path = require("path");
 const sql = require("mssql/msnodesqlv8");
 
 const app = express();
@@ -9,6 +11,8 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
 app.use(express.static(__dirname));
+
+const profilePhotoDirectory = path.join(__dirname, "uploads", "technicians");
 
 const dbConfig = {
   connectionString:
@@ -44,6 +48,33 @@ function isStrongPassword(password) {
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(email));
+}
+
+function validateTechnicianPayload({ name, specialty, phoneNumber, email, address }) {
+  if (!String(name || "").trim() || !String(specialty || "").trim()) return "Name and specialty are required.";
+  if (!isValidPhilippineMobile(phoneNumber)) return "Phone number must be an 11-digit Philippine mobile number starting with 09.";
+  if (!isValidEmail(email)) return "Enter a valid email address.";
+  if (!String(address || "").trim()) return "Address is required.";
+  return "";
+}
+
+async function saveProfilePhoto(photo) {
+  if (!photo) return "";
+  const name = String(photo.name || "");
+  const extension = path.extname(name).toLowerCase();
+  if (!['.jpg', '.jpeg', '.png'].includes(extension)) throw new Error("Profile photo must be a JPG, JPEG, or PNG file.");
+  const match = String(photo.data || "").match(/^data:image\/(jpeg|png);base64,(.+)$/);
+  if (!match) throw new Error("Profile photo data is invalid.");
+  const buffer = Buffer.from(match[2], "base64");
+  if (!buffer.length || buffer.length > 5 * 1024 * 1024) throw new Error("Profile photo must be smaller than 5 MB.");
+  await fs.mkdir(profilePhotoDirectory, { recursive: true });
+  const filename = `technician-${Date.now()}-${crypto.randomBytes(6).toString("hex")}${extension}`;
+  await fs.writeFile(path.join(profilePhotoDirectory, filename), buffer);
+  return `uploads/technicians/${filename}`;
 }
 
 function formatAddress(parts = {}) {
@@ -151,6 +182,10 @@ async function ensureSchema() {
       Name NVARCHAR(100) NOT NULL,
       Specialty NVARCHAR(100),
       Status NVARCHAR(50) DEFAULT 'Active',
+      PhoneNumber NVARCHAR(11) NULL,
+      Email NVARCHAR(255) NULL,
+      Address NVARCHAR(255) NULL,
+      ProfilePhoto NVARCHAR(255) NULL,
       CreatedAt DATETIME DEFAULT GETDATE()
     );
 
@@ -263,6 +298,16 @@ async function ensureSchema() {
       ALTER TABLE Customers ADD Province NVARCHAR(150) NULL;
     IF COL_LENGTH('Customers', 'ZipCode') IS NULL
       ALTER TABLE Customers ADD ZipCode NVARCHAR(20) NULL;
+    IF COL_LENGTH('Technicians', 'PhoneNumber') IS NULL
+      ALTER TABLE Technicians ADD PhoneNumber NVARCHAR(11) NULL;
+    IF COL_LENGTH('Technicians', 'Email') IS NULL
+      ALTER TABLE Technicians ADD Email NVARCHAR(255) NULL;
+    IF COL_LENGTH('Technicians', 'Address') IS NULL
+      ALTER TABLE Technicians ADD Address NVARCHAR(255) NULL;
+    IF COL_LENGTH('Technicians', 'ProfilePhoto') IS NULL
+      ALTER TABLE Technicians ADD ProfilePhoto NVARCHAR(255) NULL;
+    IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Technicians_Email' AND object_id = OBJECT_ID('Technicians'))
+      EXEC('CREATE UNIQUE INDEX UX_Technicians_Email ON Technicians(Email) WHERE Email IS NOT NULL');
   `);
 
   const adminPassword = hashPassword("admin", "gbp-default-admin-salt");
@@ -518,10 +563,12 @@ app.delete("/api/customers/:id", requireUser, requireAdmin, async (req, res) => 
 });
 
 app.get("/api/technicians", requireUser, async (req, res) => {
+  if (req.user.role !== "admin") return res.status(403).json({ message: "Admin access required." });
   try {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT Id AS id, Name AS name, Specialty AS specialty, Status AS status
+      SELECT Id AS id, Name AS name, Specialty AS specialty, Status AS status,
+        PhoneNumber AS phoneNumber, Email AS email, Address AS address, ProfilePhoto AS profilePhoto
       FROM Technicians
       ORDER BY Id DESC
     `);
@@ -532,44 +579,46 @@ app.get("/api/technicians", requireUser, async (req, res) => {
 });
 
 app.post("/api/technicians", requireUser, requireAdmin, async (req, res) => {
-  const { name, specialty, status = "Active", email = "", password = "" } = req.body;
-  if (!name || !specialty) return res.status(400).json({ message: "Missing required technician fields." });
-  if ((email && !password) || (!email && password)) {
-    return res.status(400).json({ message: "Provide both technician login email and password, or leave both blank." });
-  }
+  const { name, specialty, status = "Active", phoneNumber, address, password = "", profilePhoto } = req.body;
+  const email = normalizeEmail(req.body.email);
+  const validationError = validateTechnicianPayload({ name, specialty, phoneNumber, email, address });
+  if (validationError) return res.status(400).json({ message: validationError });
+  if (password && !isStrongPassword(password)) return res.status(400).json({ message: "Temporary password must be at least 8 characters and include uppercase, lowercase, and a number." });
 
   try {
     const pool = await getPool();
-    if (email && password) {
-      const existingUser = await pool
-        .request()
-        .input("Email", sql.NVarChar(150), email.toLowerCase())
-        .input("Username", sql.NVarChar(80), email.split("@")[0].toLowerCase())
-        .query("SELECT TOP 1 Id FROM Users WHERE Email = @Email OR Username = @Username");
-
-      if (existingUser.recordset.length) {
-        return res.status(409).json({ message: "That technician login already exists." });
-      }
+    const existingUser = await pool
+      .request()
+      .input("Email", sql.NVarChar(150), email)
+      .query("SELECT TOP 1 Id FROM Users WHERE Email = @Email");
+    if (existingUser.recordset.length) {
+      return res.status(409).json({ message: "That email is already registered." });
     }
+    const savedPhoto = await saveProfilePhoto(profilePhoto);
 
     const result = await pool
       .request()
       .input("Name", sql.NVarChar(100), name)
       .input("Specialty", sql.NVarChar(100), specialty)
       .input("Status", sql.NVarChar(50), status)
+      .input("PhoneNumber", sql.NVarChar(11), phoneNumber.trim())
+      .input("Email", sql.NVarChar(255), email)
+      .input("Address", sql.NVarChar(255), address.trim())
+      .input("ProfilePhoto", sql.NVarChar(255), savedPhoto || null)
       .query(`
-        INSERT INTO Technicians (Name, Specialty, Status)
-        OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Specialty AS specialty, INSERTED.Status AS status
-        VALUES (@Name, @Specialty, @Status)
+        INSERT INTO Technicians (Name, Specialty, Status, PhoneNumber, Email, Address, ProfilePhoto)
+        OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Specialty AS specialty, INSERTED.Status AS status,
+          INSERTED.PhoneNumber AS phoneNumber, INSERTED.Email AS email, INSERTED.Address AS address, INSERTED.ProfilePhoto AS profilePhoto
+        VALUES (@Name, @Specialty, @Status, @PhoneNumber, @Email, @Address, @ProfilePhoto)
       `);
 
-    if (email && password) {
+    if (password) {
       const { salt, hash } = hashPassword(password);
       await pool
         .request()
         .input("Username", sql.NVarChar(80), email.split("@")[0].toLowerCase())
         .input("FullName", sql.NVarChar(100), name)
-        .input("Email", sql.NVarChar(150), email.toLowerCase())
+        .input("Email", sql.NVarChar(150), email)
         .input("PasswordHash", sql.NVarChar(255), hash)
         .input("PasswordSalt", sql.NVarChar(80), salt)
         .input("Role", sql.NVarChar(30), "technician")
@@ -587,24 +636,40 @@ app.post("/api/technicians", requireUser, requireAdmin, async (req, res) => {
 });
 
 app.put("/api/technicians/:id", requireUser, requireAdmin, async (req, res) => {
-  const { name, specialty, status = "Active" } = req.body;
-  if (!name || !specialty) return res.status(400).json({ message: "Missing required technician fields." });
+  const { name, specialty, status = "Active", phoneNumber, address, profilePhoto } = req.body;
+  const email = normalizeEmail(req.body.email);
+  const validationError = validateTechnicianPayload({ name, specialty, phoneNumber, email, address });
+  if (validationError) return res.status(400).json({ message: validationError });
 
   try {
     const pool = await getPool();
+    const duplicate = await pool.request().input("Email", sql.NVarChar(255), email).input("Id", sql.Int, Number(req.params.id)).query("SELECT TOP 1 Id FROM Technicians WHERE Email = @Email AND Id <> @Id");
+    if (duplicate.recordset.length) return res.status(409).json({ message: "That email is already assigned to another technician." });
+    const existing = await pool.request().input("Id", sql.Int, Number(req.params.id)).query("SELECT ProfilePhoto, Email FROM Technicians WHERE Id = @Id");
+    if (!existing.recordset.length) return res.status(404).json({ message: "Technician not found." });
+    const emailInUse = await pool.request().input("Email", sql.NVarChar(150), email).input("OldEmail", sql.NVarChar(255), existing.recordset[0].Email).query("SELECT TOP 1 Id FROM Users WHERE Email = @Email AND Email <> @OldEmail");
+    if (emailInUse.recordset.length) return res.status(409).json({ message: "That email is already registered." });
+    const savedPhoto = profilePhoto ? await saveProfilePhoto(profilePhoto) : existing.recordset[0].ProfilePhoto;
     const result = await pool
       .request()
       .input("Id", sql.Int, Number(req.params.id))
       .input("Name", sql.NVarChar(100), name)
       .input("Specialty", sql.NVarChar(100), specialty)
       .input("Status", sql.NVarChar(50), status)
+      .input("PhoneNumber", sql.NVarChar(11), phoneNumber.trim())
+      .input("Email", sql.NVarChar(255), email)
+      .input("Address", sql.NVarChar(255), address.trim())
+      .input("ProfilePhoto", sql.NVarChar(255), savedPhoto || null)
       .query(`
         UPDATE Technicians
-        SET Name = @Name, Specialty = @Specialty, Status = @Status
-        OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Specialty AS specialty, INSERTED.Status AS status
+        SET Name = @Name, Specialty = @Specialty, Status = @Status, PhoneNumber = @PhoneNumber, Email = @Email, Address = @Address, ProfilePhoto = @ProfilePhoto
+        OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Specialty AS specialty, INSERTED.Status AS status,
+          INSERTED.PhoneNumber AS phoneNumber, INSERTED.Email AS email, INSERTED.Address AS address, INSERTED.ProfilePhoto AS profilePhoto
         WHERE Id = @Id
       `);
-    if (!result.recordset.length) return res.status(404).json({ message: "Technician not found." });
+    await pool.request().input("OldEmail", sql.NVarChar(255), existing.recordset[0].Email).input("FullName", sql.NVarChar(100), name.trim()).input("Email", sql.NVarChar(150), email).query(`
+      UPDATE Users SET FullName = @FullName, Email = @Email WHERE Role = 'technician' AND Email = @OldEmail
+    `);
     await logAction(`Updated technician ${name}`, actorName(req), "Technicians", req.params.id);
     res.json(result.recordset[0]);
   } catch (error) {
@@ -612,10 +677,66 @@ app.put("/api/technicians/:id", requireUser, requireAdmin, async (req, res) => {
   }
 });
 
+app.get("/api/technicians/me", requireUser, async (req, res) => {
+  if (req.user.role !== "technician") return res.status(403).json({ message: "Technician access required." });
+  try {
+    const pool = await getPool();
+    const result = await pool.request().input("UserId", sql.Int, req.user.id).query(`
+      SELECT t.Id AS id, t.Name AS name, t.Specialty AS specialty, t.Status AS status,
+        t.PhoneNumber AS phoneNumber, t.Email AS email, t.Address AS address, t.ProfilePhoto AS profilePhoto
+      FROM Technicians t INNER JOIN Users u ON u.Email = t.Email
+      WHERE u.Id = @UserId AND u.Role = 'technician'
+    `);
+    if (!result.recordset.length) return res.status(404).json({ message: "No technician profile is linked to this account." });
+    res.json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.put("/api/technicians/me", requireUser, async (req, res) => {
+  if (req.user.role !== "technician") return res.status(403).json({ message: "Technician access required." });
+  const { name, phoneNumber, address, profilePhoto } = req.body;
+  const email = normalizeEmail(req.body.email);
+  if (!String(name || "").trim() || !isValidPhilippineMobile(phoneNumber) || !isValidEmail(email) || !String(address || "").trim()) {
+    return res.status(400).json({ message: "Provide a name, valid Philippine mobile number, valid email, and address." });
+  }
+  try {
+    const pool = await getPool();
+    const current = await pool.request().input("UserId", sql.Int, req.user.id).query(`
+      SELECT t.Id, t.ProfilePhoto, t.Email FROM Technicians t INNER JOIN Users u ON u.Email = t.Email
+      WHERE u.Id = @UserId AND u.Role = 'technician'
+    `);
+    if (!current.recordset.length) return res.status(404).json({ message: "No technician profile is linked to this account." });
+    const technician = current.recordset[0];
+    const duplicate = await pool.request().input("Email", sql.NVarChar(255), email).input("Id", sql.Int, technician.Id).query("SELECT TOP 1 Id FROM Technicians WHERE Email = @Email AND Id <> @Id");
+    if (duplicate.recordset.length) return res.status(409).json({ message: "That email is already assigned to another technician." });
+    const emailInUse = await pool.request().input("Email", sql.NVarChar(150), email).input("UserId", sql.Int, req.user.id).query("SELECT TOP 1 Id FROM Users WHERE Email = @Email AND Id <> @UserId");
+    if (emailInUse.recordset.length) return res.status(409).json({ message: "That email is already registered." });
+    const savedPhoto = profilePhoto ? await saveProfilePhoto(profilePhoto) : technician.ProfilePhoto;
+    const result = await pool.request().input("Id", sql.Int, technician.Id).input("Name", sql.NVarChar(100), name.trim()).input("PhoneNumber", sql.NVarChar(11), phoneNumber.trim()).input("Email", sql.NVarChar(255), email).input("Address", sql.NVarChar(255), address.trim()).input("ProfilePhoto", sql.NVarChar(255), savedPhoto || null).query(`
+      UPDATE Technicians SET Name = @Name, PhoneNumber = @PhoneNumber, Email = @Email, Address = @Address, ProfilePhoto = @ProfilePhoto
+      OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Specialty AS specialty, INSERTED.Status AS status,
+        INSERTED.PhoneNumber AS phoneNumber, INSERTED.Email AS email, INSERTED.Address AS address, INSERTED.ProfilePhoto AS profilePhoto
+      WHERE Id = @Id
+    `);
+    await pool.request().input("UserId", sql.Int, req.user.id).input("Name", sql.NVarChar(100), name.trim()).input("Email", sql.NVarChar(150), email).query("UPDATE Users SET FullName = @Name, Email = @Email WHERE Id = @UserId");
+    await logAction(`Updated technician profile ${name}`, actorName(req), "Technicians", technician.Id);
+    res.json(result.recordset[0]);
+  } catch (error) {
+    res.status(500).json({ message: error.message.includes("UNIQUE") ? "That email is already registered." : error.message });
+  }
+});
+
 app.delete("/api/technicians/:id", requireUser, requireAdmin, async (req, res) => {
   try {
     const pool = await getPool();
+    const technician = await pool.request().input("Id", sql.Int, Number(req.params.id)).query("SELECT Email FROM Technicians WHERE Id = @Id");
+    if (!technician.recordset.length) return res.status(404).json({ message: "Technician not found." });
     await pool.request().input("Id", sql.Int, Number(req.params.id)).query("DELETE FROM Technicians WHERE Id = @Id");
+    if (technician.recordset[0].Email) {
+      await pool.request().input("Email", sql.NVarChar(255), technician.recordset[0].Email).query("DELETE FROM Users WHERE Role = 'technician' AND Email = @Email");
+    }
     await logAction("Deleted a technician", actorName(req), "Technicians", req.params.id);
     res.status(204).end();
   } catch (error) {

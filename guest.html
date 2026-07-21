@@ -14,19 +14,18 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="portal-shell">
-    <div class="portal-brand"><div class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></div><strong>GBP Electro -Mechanical Services</strong></div>
-    <aside class="portal-sidebar">
-      <nav class="portal-nav">
-        <button class="nav-link active" data-tab="services"><span class="nav-icon icon-service"></span>Services</button>
-        <button class="nav-link" data-tab="products"><span class="nav-icon icon-product"></span>Products</button>
-      </nav>
-    </aside>
+  <div class="portal-shell website-shell">
+    <header class="website-nav">
+      <a class="website-brand" href="guest.html"><span class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></span><strong>GBP Electro Mechanical Services</strong></a>
+      <nav class="website-links" aria-label="Main navigation"><a class="website-link active" href="#services">Services</a><a class="website-link" href="#products">Products</a><a class="website-link" href="mailto:contact@example.com">Support</a></nav>
+      <div class="website-actions"><a class="sign-up-link" href="index.html?tab=register">Sign Up</a><a class="primary-button" href="index.html">Log In</a></div>
+    </header>
     <main class="portal-main">
-      <header class="portal-header"><div><h1>Guest Browsing</h1><p>View services and products. Login or register to book a schedule.</p></div><a class="primary-button" href="index.html">Login / Register</a></header>
-      <section id="servicesTab" class="portal-tab"><div class="page-heading"><div><h2>Services</h2><p>Browse available services.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>Name</th><th>Type</th><th>Price</th><th>Inclusion</th><th>Exclusion</th><th>Action</th></tr></thead><tbody id="servicesBody"></tbody></table></section></section>
-      <section id="productsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Products</h2><p>Browse available products.</p></div></div><section id="productsGrid" class="products-grid"></section></section>
+      <header class="portal-header"><div><h1>Welcome to GBP Services</h1><p>Explore our services and products before you book.</p></div></header>
+      <section id="services" class="portal-tab marketing-section"><div class="page-heading"><div><p class="section-kicker">What we do</p><h2>Services built around your needs</h2><p>Browse available services and choose the right support for your space.</p></div></div><div id="servicesGrid" class="services-grid marketing-services"></div></section>
+      <section id="products" class="portal-tab marketing-section"><div class="page-heading"><div><p class="section-kicker">Available equipment</p><h2>Products you can rely on</h2><p>Explore our current air-conditioning products and equipment.</p></div></div><section id="productsGrid" class="products-grid"></section></section>
     </main>
+    <footer class="site-footer"><div class="footer-grid"><div><strong class="footer-brand">GBP Electro Mechanical Services</strong><p>Dependable electro-mechanical services for your home and business.</p></div><div><h3>Quick links</h3><a href="#services">Services</a><a href="#products">Products</a><a href="index.html?next=book">Book a Service</a></div><div><h3>Contact</h3><p>Phone: Add phone number</p><p>Email: Add email address</p><p>Address: Add business address</p></div><div><h3>Follow us</h3><div class="social-links"><a href="#" aria-label="Facebook">f</a><a href="#" aria-label="Instagram">◎</a><a href="#" aria-label="LinkedIn">in</a></div></div></div><div class="footer-bottom">© 2026 GBP Electro Mechanical Services. All rights reserved.</div></footer>
   </div>
   <div id="toast" class="toast hidden"></div>
   <script type="module" src="js/guest-page.js"></script>

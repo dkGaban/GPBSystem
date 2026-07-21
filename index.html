@@ -19,22 +19,10 @@
     <div class="pointer-events-none absolute -right-20 bottom-12 h-80 w-80 rounded-full bg-sky-300/40 blur-3xl"></div>
     <div class="pointer-events-none absolute left-1/2 top-0 h-px w-2/3 -translate-x-1/2 bg-gradient-to-r from-transparent via-blue-400/70 to-transparent"></div>
 
-    <div class="auth-card relative z-10">
-      <div class="auth-brand">
-        <div class="brand-logo-frame">
-          <img class="brand-logo-img" src="resources/logo.png" alt="GBP Electro-Mechanical Services logo" />
-        </div>
-        <div>
-          <h1>GBP Electro-Mechanical Services</h1>
-          <p>Login, register as a customer, or browse available services as a guest.</p>
-        </div>
-      </div>
-
-      <div class="mb-4 grid grid-cols-3 gap-2 text-center text-[11px] font-extrabold text-blue-950">
-        <span class="rounded-md border border-blue-100 bg-blue-50 px-2 py-2">Bookings</span>
-        <span class="rounded-md border border-emerald-100 bg-emerald-50 px-2 py-2">Services</span>
-        <span class="rounded-md border border-sky-100 bg-sky-50 px-2 py-2">Schedules</span>
-      </div>
+    <div class="auth-card auth-card-modern relative z-10">
+      <div class="auth-illustration-placeholder" aria-label="Reserved space for a future logo or illustration">Logo / illustration</div>
+      <div class="auth-signin-icon">↗</div>
+      <div class="auth-intro"><h1>Sign in</h1><p>Welcome back. Enter your details to continue.</p></div>
 
       <div class="auth-tabs">
         <button class="auth-tab active" data-auth-tab="login">Login</button>
@@ -44,12 +32,13 @@
       <form id="loginForm" class="auth-form">
         <label class="form-field">
           <span>Email</span>
-          <input id="loginEmail" required />
+          <input id="loginEmail" type="email" placeholder="you@example.com" required />
         </label>
         <label class="form-field">
           <span>Password</span>
-          <input id="loginPassword" type="password" required />
+          <div class="password-control"><input id="loginPassword" type="password" required /><button type="button" id="togglePassword">Show</button></div>
         </label>
+        <a class="forgot-link" href="#">Forgot password?</a>
         <button type="submit" class="primary-button w-full">Login</button>
       </form>
 
@@ -68,7 +57,7 @@
         </label>
         <label class="form-field">
           <span>Phone Number</span>
-          <input id="registerPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required />
+          <input id="registerPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /><small id="registerPhoneError" class="field-error hidden">Enter a valid 11-digit PH phone number starting with 09.</small>
         </label>
         <label class="form-field">
           <span>House Number</span>
@@ -98,12 +87,9 @@
       </form>
 
       <div class="auth-actions">
-        <a class="secondary-button w-full" href="guest.html">Continue as Guest</a>
+        <a class="secondary-button w-full" href="guest.html">Browse as Guest</a>
       </div>
 
-      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-center text-[11px] font-bold text-slate-500">
-        Admin, customer, guest, and technician portals are separated for clearer access.
-      </div>
     </div>
   </section>
 

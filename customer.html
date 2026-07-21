@@ -14,42 +14,31 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="portal-shell">
-    <div class="portal-brand"><div class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></div><strong>GBP Electro -Mechanical Services</strong></div>
-    <aside class="portal-sidebar">
-      <nav class="portal-nav">
-        <button class="nav-link active" data-tab="dashboard"><span class="nav-icon icon-dashboard"></span>Dashboard</button>
-        <button class="nav-link" data-tab="book"><span class="nav-icon icon-bookings"></span>Book Service</button>
-        <button class="nav-link" data-tab="bookings"><span class="nav-icon icon-schedule"></span>My Bookings</button>
-        <button class="nav-link" data-tab="services"><span class="nav-icon icon-service"></span>Services</button>
-        <button class="nav-link" data-tab="products"><span class="nav-icon icon-product"></span>Products</button>
-      </nav>
-    </aside>
+  <div class="portal-shell website-shell">
+    <header class="website-nav">
+      <a class="website-brand" href="customer.html"><span class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></span><strong>GBP Electro Mechanical Services</strong></a>
+      <nav class="website-links" aria-label="Main navigation"><a class="website-link active" href="customer.html#services">Services</a><a class="website-link" href="customer.html#products">Products</a><button class="website-link" data-tab="book">Book a Service</button></nav>
+      <div class="website-actions"><button class="sign-up-link" data-tab="profile">My Account</button><button id="logoutButton" class="secondary-button">Log Out</button></div>
+    </header>
     <main class="portal-main">
-      <header class="portal-header"><div><h1>Customer Dashboard</h1><p>Browse services, submit booking requests, and track your requests.</p></div><button id="logoutButton" class="secondary-button">Logout</button></header>
-      <section id="dashboardTab" class="portal-tab">
-        <div id="statsGrid" class="stats-grid"></div>
-        <section class="panel"><div class="panel-header"><h2>Recent Bookings</h2></div><table class="data-table"><thead><tr><th>ID</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th></tr></thead><tbody id="recentBookingsBody"></tbody></table></section>
-      </section>
+      <section id="homeTab" class="portal-tab"><header class="portal-header"><div><h1>Welcome to GBP Services</h1><p>Explore our services and products, then book when you are ready.</p></div></header><section id="services" class="marketing-section"><div class="page-heading"><div><p class="section-kicker">What we do</p><h2>Services built around your needs</h2><p>Browse available services and choose the right support for your space.</p></div></div><div id="servicesGrid" class="services-grid marketing-services"></div></section><section id="products" class="marketing-section"><div class="page-heading"><div><p class="section-kicker">Available equipment</p><h2>Products you can rely on</h2><p>Explore our current air-conditioning products and equipment.</p></div></div><section id="productsGrid" class="products-grid"></section></section></section>
       <section id="bookTab" class="portal-tab hidden">
         <div class="page-heading"><div><h2>Book a Service</h2><p>Submit a request and wait for admin approval.</p></div></div>
         <section class="panel">
           <form id="bookingForm" class="form-grid">
-            <label class="form-field"><span>Full Name</span><input id="bookingCustomer" required /></label>
-            <label class="form-field"><span>Phone</span><input id="bookingPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /></label>
-            <label class="form-field"><span>Email</span><input id="bookingEmail" type="email" required /></label>
-            <label class="form-field"><span>Service</span><select id="bookingService" required></select></label>
+            <fieldset class="form-field full"><legend>Services</legend><div id="bookingServices" class="service-picker"></div></fieldset>
             <label class="form-field"><span>Preferred Date</span><input id="bookingDate" type="date" required /></label>
-            <label class="form-field"><span>Preferred Time</span><input id="bookingTime" type="time" /></label>
+            <fieldset class="form-field"><legend>Preferred time slot</legend><div id="bookingTimeSlots" class="time-slots"></div></fieldset>
             <label class="form-field full"><span>Address</span><input id="bookingAddress" required /></label>
+            <div class="booking-total full"><span>Booking total</span><strong id="bookingTotal">₱0.00</strong></div>
             <button class="primary-button">Submit Booking Request</button>
           </form>
         </section>
       </section>
       <section id="bookingsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>My Bookings</h2><p>Track your booking status.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>ID</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th></tr></thead><tbody id="bookingsBody"></tbody></table></section></section>
-      <section id="servicesTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Services</h2><p>Available services you can book.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>Name</th><th>Type</th><th>Price</th><th>Inclusion</th><th>Exclusion</th><th>Action</th></tr></thead><tbody id="servicesBody"></tbody></table></section></section>
-      <section id="productsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Products</h2><p>Available air-conditioning products.</p></div></div><section id="productsGrid" class="products-grid"></section></section>
+      <section id="profileTab" class="portal-tab hidden"><div class="page-heading"><div><h2>My Profile</h2><p>Update the details used for your booking requests.</p></div></div><section class="panel"><form id="profileForm" class="form-grid"><label class="form-field"><span>Full Name</span><input id="profileName" required /></label><label class="form-field"><span>Email</span><input id="profileEmail" type="email" required /></label><label class="form-field"><span>Phone Number</span><input id="profilePhone" inputmode="numeric" maxlength="11" required /><small id="profilePhoneError" class="field-error hidden">Enter a valid 11-digit PH phone number starting with 09.</small></label><label class="form-field full"><span>Address</span><input id="profileAddress" required /></label><button class="primary-button">Save Profile</button></form><form id="customerPasswordForm" class="password-panel"><h3>Change Password</h3><div class="form-grid"><label class="form-field"><span>Current password</span><input id="customerCurrentPassword" type="password" required /></label><label class="form-field"><span>New password</span><input id="customerNewPassword" type="password" required /></label><label class="form-field"><span>Confirm new password</span><input id="customerConfirmPassword" type="password" required /></label></div><p id="customerPasswordMessage" class="form-message" role="status"></p><button class="primary-button">Change Password</button></form></section></section>
     </main>
+    <footer class="site-footer"><div class="footer-grid"><div><strong class="footer-brand">GBP Electro Mechanical Services</strong><p>Dependable electro-mechanical services for your home and business.</p></div><div><h3>Quick links</h3><button data-tab="services">Services</button><button data-tab="products">Products</button><button data-tab="book">Book a Service</button></div><div><h3>Contact</h3><p>Phone: Add phone number</p><p>Email: Add email address</p><p>Address: Add business address</p></div><div><h3>Follow us</h3><div class="social-links"><a href="#" aria-label="Facebook">f</a><a href="#" aria-label="Instagram">◎</a><a href="#" aria-label="LinkedIn">in</a></div></div></div><div class="footer-bottom">© 2026 GBP Electro Mechanical Services. All rights reserved.</div></footer>
   </div>
   <div id="toast" class="toast hidden"></div>
   <script type="module" src="js/customer-page.js"></script>

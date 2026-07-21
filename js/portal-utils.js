@@ -95,7 +95,7 @@ export function renderProducts(products, options = {}) {
     .map(
       (product) => `
         <article class="product-card">
-          <div class="product-image">${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}">` : "No image yet"}</div>
+          <div class="product-image">${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}">` : `<span class="product-image-placeholder">Image coming soon</span>`}</div>
           <div class="product-card-body">
             <div class="product-meta-row"><span>${escapeHtml(product.brand)}</span><span>${escapeHtml(product.type)}</span></div>
             <h3>${escapeHtml(product.name)}</h3>
@@ -109,6 +109,12 @@ export function renderProducts(products, options = {}) {
       `
     )
     .join("");
+}
+
+export function renderServiceCards(services, options = {}) {
+  const target = document.getElementById(options.targetId || "servicesGrid");
+  if (!target) return;
+  target.innerHTML = services.length ? services.map((service) => `<article class="service-card"><div class="service-image-placeholder">${service.image ? `<img src="${escapeHtml(service.image)}" alt="${escapeHtml(service.name)}">` : `<span class="nav-icon icon-service"></span>`}</div><div class="service-card-body"><p class="service-type">${escapeHtml(service.type || "Service")}</p><h3>${escapeHtml(service.name)}</h3><p class="service-price">${peso(service.price)}</p><p class="service-description">${escapeHtml(service.inclusion || "Professional service tailored to your requirements.")}</p><button class="primary-button" ${options.customer ? `data-book-service="${escapeHtml(service.name)}"` : "data-login-required"}>${options.customer ? "Book" : "Login to Book"}</button></div></article>`).join("") : `<p class="empty-note">No services available.</p>`;
 }
 
 function productActions(product, options) {

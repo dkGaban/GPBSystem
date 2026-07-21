@@ -10,6 +10,7 @@ const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "guest.html")));
 app.use(express.static(__dirname));
 
 const profilePhotoDirectory = path.join(__dirname, "uploads", "technicians");
@@ -55,7 +56,7 @@ function isValidEmail(email) {
 }
 
 function validateTechnicianPayload({ name, specialty, phoneNumber, email, address }) {
-  if (!String(name || "").trim() || !String(specialty || "").trim()) return "Name and specialty are required.";
+  if (!String(name || "").trim() || !String(specialty || "").trim()) return "Name and fields are required.";
   if (!isValidPhilippineMobile(phoneNumber)) return "Phone number must be an 11-digit Philippine mobile number starting with 09.";
   if (!isValidEmail(email)) return "Enter a valid email address.";
   if (!String(address || "").trim()) return "Address is required.";
@@ -197,6 +198,7 @@ async function ensureSchema() {
       Price DECIMAL(10,2),
       Inclusion NVARCHAR(MAX),
       Exclusion NVARCHAR(MAX),
+      Image NVARCHAR(MAX),
       CreatedAt DATETIME DEFAULT GETDATE()
     );
 
@@ -225,6 +227,7 @@ async function ensureSchema() {
       Address NVARCHAR(255),
       PreferredDate DATE,
       PreferredTime NVARCHAR(50),
+      TotalAmount DECIMAL(10,2) NULL,
       Status NVARCHAR(50) DEFAULT 'Pending',
       CreatedAt DATETIME DEFAULT GETDATE(),
       FOREIGN KEY (CustomerId) REFERENCES Customers(Id),
@@ -284,6 +287,12 @@ async function ensureSchema() {
       ALTER TABLE Bookings ADD Phone NVARCHAR(50) NULL;
     IF COL_LENGTH('Bookings', 'Email') IS NULL
       ALTER TABLE Bookings ADD Email NVARCHAR(150) NULL;
+    IF COL_LENGTH('Bookings', 'TotalAmount') IS NULL
+      ALTER TABLE Bookings ADD TotalAmount DECIMAL(10,2) NULL;
+    IF COL_LENGTH('Bookings', 'ServiceName') IS NOT NULL
+      ALTER TABLE Bookings ALTER COLUMN ServiceName NVARCHAR(500) NULL;
+    IF COL_LENGTH('Services', 'Image') IS NULL
+      ALTER TABLE Services ADD Image NVARCHAR(MAX) NULL;
     IF COL_LENGTH('Schedules', 'ScheduleTime') IS NULL
       ALTER TABLE Schedules ADD ScheduleTime NVARCHAR(50) NULL;
     IF COL_LENGTH('Customers', 'HouseNumber') IS NULL
@@ -310,17 +319,23 @@ async function ensureSchema() {
       EXEC('CREATE UNIQUE INDEX UX_Technicians_Email ON Technicians(Email) WHERE Email IS NOT NULL');
   `);
 
-  const adminPassword = hashPassword("admin", "gbp-default-admin-salt");
+  const adminPassword = hashPassword("admin123", "gbp-default-admin-salt");
   await pool
     .request()
     .input("Username", sql.NVarChar(80), "admin")
     .input("FullName", sql.NVarChar(100), "System Administrator")
-    .input("Email", sql.NVarChar(150), "admin@gbp.local")
+    .input("Email", sql.NVarChar(150), "admin@gmail.com")
     .input("PasswordHash", sql.NVarChar(255), adminPassword.hash)
     .input("PasswordSalt", sql.NVarChar(80), adminPassword.salt)
     .input("Role", sql.NVarChar(30), "admin")
     .query(`
-      IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = @Username)
+      IF EXISTS (SELECT 1 FROM Users WHERE Username = @Username)
+      BEGIN
+        UPDATE Users
+        SET FullName = @FullName, Email = @Email, PasswordHash = @PasswordHash, PasswordSalt = @PasswordSalt, Role = @Role
+        WHERE Username = @Username
+      END
+      ELSE
       BEGIN
         INSERT INTO Users (Username, FullName, Email, PasswordHash, PasswordSalt, Role)
         VALUES (@Username, @FullName, @Email, @PasswordHash, @PasswordSalt, @Role)
@@ -439,6 +454,20 @@ app.post("/api/auth/login", async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
+});
+
+app.put("/api/auth/change-password", requireUser, async (req, res) => {
+  const { currentPassword, newPassword, confirmPassword } = req.body;
+  if (!currentPassword || !newPassword || newPassword !== confirmPassword) return res.status(400).json({ message: "Enter the current password and matching new passwords." });
+  if (!isStrongPassword(newPassword)) return res.status(400).json({ message: "New password must be at least 8 characters with uppercase, lowercase, and a number." });
+  try {
+    const pool = await getPool();
+    const existing = await pool.request().input("Id", sql.Int, req.user.id).query("SELECT PasswordHash, PasswordSalt FROM Users WHERE Id = @Id");
+    if (!existing.recordset.length || !verifyPassword(currentPassword, existing.recordset[0].PasswordSalt, existing.recordset[0].PasswordHash)) return res.status(400).json({ message: "Current password is incorrect." });
+    const next = hashPassword(newPassword);
+    await pool.request().input("Id", sql.Int, req.user.id).input("PasswordHash", sql.NVarChar(255), next.hash).input("PasswordSalt", sql.NVarChar(80), next.salt).query("UPDATE Users SET PasswordHash = @PasswordHash, PasswordSalt = @PasswordSalt WHERE Id = @Id");
+    res.json({ message: "Password changed successfully." });
+  } catch (error) { res.status(500).json({ message: error.message }); }
 });
 
 app.get("/api/logs", requireUser, requireAdmin, async (req, res) => {
@@ -733,7 +762,7 @@ app.delete("/api/technicians/:id", requireUser, requireAdmin, async (req, res) =
     const pool = await getPool();
     const technician = await pool.request().input("Id", sql.Int, Number(req.params.id)).query("SELECT Email FROM Technicians WHERE Id = @Id");
     if (!technician.recordset.length) return res.status(404).json({ message: "Technician not found." });
-    await pool.request().input("Id", sql.Int, Number(req.params.id)).query("DELETE FROM Technicians WHERE Id = @Id");
+    await pool.request().input("Id", sql.Int, Number(req.params.id)).query("DELETE FROM Schedules WHERE TechnicianId = @Id; DELETE FROM Technicians WHERE Id = @Id; IF NOT EXISTS (SELECT 1 FROM Technicians) DBCC CHECKIDENT ('Technicians', RESEED, 0)");
     if (technician.recordset[0].Email) {
       await pool.request().input("Email", sql.NVarChar(255), technician.recordset[0].Email).query("DELETE FROM Users WHERE Role = 'technician' AND Email = @Email");
     }
@@ -757,6 +786,7 @@ app.get("/api/bookings", requireUser, async (req, res) => {
         b.Address AS address,
         CONVERT(varchar(10), b.PreferredDate, 23) AS preferredDate,
         b.PreferredTime AS preferredTime,
+        b.TotalAmount AS totalAmount,
         b.Status AS status,
         t.Name AS technician,
         CONVERT(varchar(10), s.ScheduleDate, 23) AS scheduleDate,
@@ -773,8 +803,11 @@ app.get("/api/bookings", requireUser, async (req, res) => {
 });
 
 app.post("/api/bookings", requireUser, async (req, res) => {
-  const { customer, phone, email, service, address, preferredDate, preferredTime } = req.body;
-  if (!customer || !service || !address || !preferredDate) {
+  const { customer, phone, email, service, services = [], address, preferredDate, preferredTime } = req.body;
+  const selectedServices = Array.isArray(services) && services.length ? services : String(service || "").split(",").map((item) => item.trim()).filter(Boolean);
+  const serviceNames = selectedServices.map((item) => String(item.name || item).trim()).filter(Boolean);
+  const serviceLabel = serviceNames.join(", ");
+  if (!customer || !serviceLabel || !address || !preferredDate || !preferredTime) {
     return res.status(400).json({ message: "Missing required booking fields." });
   }
   if (phone && !isValidPhilippineMobile(phone)) {
@@ -783,28 +816,36 @@ app.post("/api/bookings", requireUser, async (req, res) => {
 
   try {
     const pool = await getPool();
+    const pricedServices = await Promise.all(serviceNames.map(async (name) => {
+      const result = await pool.request().input("Name", sql.NVarChar(100), name).query("SELECT TOP 1 Price FROM Services WHERE Name = @Name");
+      return result.recordset[0];
+    }));
+    if (pricedServices.some((item) => !item)) return res.status(400).json({ message: "One or more selected services are no longer available." });
+    const serviceTotal = pricedServices.reduce((sum, item) => sum + Number(item.Price || 0), 0);
     const result = await pool
       .request()
       .input("CustomerName", sql.NVarChar(100), customer)
       .input("Phone", sql.NVarChar(50), phone || "")
       .input("Email", sql.NVarChar(150), email || "")
-      .input("ServiceName", sql.NVarChar(100), service)
+      .input("ServiceName", sql.NVarChar(500), serviceLabel)
+      .input("TotalAmount", sql.Decimal(10, 2), serviceTotal)
       .input("Address", sql.NVarChar(255), address)
       .input("PreferredDate", sql.Date, preferredDate)
       .input("PreferredTime", sql.NVarChar(50), preferredTime || "")
       .query(`
-        INSERT INTO Bookings (CustomerName, Phone, Email, ServiceName, Address, PreferredDate, PreferredTime, Status)
+        INSERT INTO Bookings (CustomerName, Phone, Email, ServiceName, TotalAmount, Address, PreferredDate, PreferredTime, Status)
         OUTPUT
           INSERTED.Id AS id,
           INSERTED.CustomerName AS customer,
           INSERTED.Phone AS phone,
           INSERTED.Email AS email,
           INSERTED.ServiceName AS service,
+          INSERTED.TotalAmount AS totalAmount,
           INSERTED.Address AS address,
           CONVERT(varchar(10), INSERTED.PreferredDate, 23) AS preferredDate,
           INSERTED.PreferredTime AS preferredTime,
           INSERTED.Status AS status
-        VALUES (@CustomerName, @Phone, @Email, @ServiceName, @Address, @PreferredDate, @PreferredTime, 'Pending')
+        VALUES (@CustomerName, @Phone, @Email, @ServiceName, @TotalAmount, @Address, @PreferredDate, @PreferredTime, 'Pending')
       `);
     await logAction(`Created booking for ${customer}`, actorName(req), "Bookings", result.recordset[0].id);
     res.status(201).json(result.recordset[0]);
@@ -931,7 +972,8 @@ app.get("/api/services", async (req, res) => {
         Type AS type,
         Price AS price,
         Inclusion AS inclusion,
-        Exclusion AS exclusion
+        Exclusion AS exclusion,
+        Image AS image
       FROM Services
       ORDER BY Id DESC
     `);
@@ -943,7 +985,7 @@ app.get("/api/services", async (req, res) => {
 });
 
 app.post("/api/services", requireUser, requireAdmin, async (req, res) => {
-  const { name, type, price, inclusion = "", exclusion = "" } = req.body;
+  const { name, type, price, inclusion = "", exclusion = "", image = "" } = req.body;
 
   const validationMessage = validateServicePayload({ name, type, price });
   if (validationMessage) return res.status(400).json({ message: validationMessage });
@@ -960,8 +1002,9 @@ app.post("/api/services", requireUser, requireAdmin, async (req, res) => {
       .input("Price", sql.Decimal(10, 2), Number(price))
       .input("Inclusion", sql.NVarChar(sql.MAX), String(inclusion || "").trim())
       .input("Exclusion", sql.NVarChar(sql.MAX), String(exclusion || "").trim())
+      .input("Image", sql.NVarChar(sql.MAX), String(image || ""))
       .query(`
-        INSERT INTO Services (Name, Type, Price, Inclusion, Exclusion)
+        INSERT INTO Services (Name, Type, Price, Inclusion, Exclusion, Image)
         OUTPUT
           INSERTED.Id AS id,
           INSERTED.Name AS name,
@@ -969,7 +1012,8 @@ app.post("/api/services", requireUser, requireAdmin, async (req, res) => {
           INSERTED.Price AS price,
           INSERTED.Inclusion AS inclusion,
           INSERTED.Exclusion AS exclusion
-        VALUES (@Name, @Type, @Price, @Inclusion, @Exclusion)
+          , INSERTED.Image AS image
+        VALUES (@Name, @Type, @Price, @Inclusion, @Exclusion, @Image)
       `);
 
     await logAction(`Created service ${name}`, actorName(req), "Services", result.recordset[0].id);
@@ -980,7 +1024,7 @@ app.post("/api/services", requireUser, requireAdmin, async (req, res) => {
 });
 
 app.put("/api/services/:id", requireUser, requireAdmin, async (req, res) => {
-  const { name, type, price, inclusion = "", exclusion = "" } = req.body;
+  const { name, type, price, inclusion = "", exclusion = "", image = "" } = req.body;
 
   const validationMessage = validateServicePayload({ name, type, price });
   if (validationMessage) return res.status(400).json({ message: validationMessage });
@@ -1002,6 +1046,7 @@ app.put("/api/services/:id", requireUser, requireAdmin, async (req, res) => {
       .input("Price", sql.Decimal(10, 2), Number(price))
       .input("Inclusion", sql.NVarChar(sql.MAX), String(inclusion || "").trim())
       .input("Exclusion", sql.NVarChar(sql.MAX), String(exclusion || "").trim())
+      .input("Image", sql.NVarChar(sql.MAX), String(image || ""))
       .query(`
         UPDATE Services
         SET
@@ -1009,14 +1054,16 @@ app.put("/api/services/:id", requireUser, requireAdmin, async (req, res) => {
           Type = @Type,
           Price = @Price,
           Inclusion = @Inclusion,
-          Exclusion = @Exclusion
+          Exclusion = @Exclusion,
+          Image = @Image
         OUTPUT
           INSERTED.Id AS id,
           INSERTED.Name AS name,
           INSERTED.Type AS type,
           INSERTED.Price AS price,
           INSERTED.Inclusion AS inclusion,
-          INSERTED.Exclusion AS exclusion
+          INSERTED.Exclusion AS exclusion,
+          INSERTED.Image AS image
         WHERE Id = @Id
       `);
 

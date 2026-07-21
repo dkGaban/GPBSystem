@@ -44,6 +44,7 @@ async function init() {
   document.getElementById("productForm").addEventListener("submit", saveProduct);
   document.getElementById("technicianForm").addEventListener("submit", saveTechnician);
   document.getElementById("customerForm").addEventListener("submit", saveCustomer);
+  document.getElementById("customerSearch").addEventListener("input", renderCustomers);
   document.getElementById("scheduleForm").addEventListener("submit", saveSchedule);
   await loadAll();
 }
@@ -119,8 +120,10 @@ function renderTechnicians() {
 }
 
 function renderCustomers() {
-  document.getElementById("customersBody").innerHTML = customers.length
-    ? customers.map((customer) => `<tr><td>${customer.id}</td><td>${escapeHtml(customer.name)}</td><td>${escapeHtml(customer.phone)}</td><td>${escapeHtml(customer.email)}</td><td class="pre-line">${escapeHtml(customer.address)}</td><td><button class="tiny-button secondary-button" data-edit-customer="${customer.id}">Edit</button><button class="tiny-button danger-button" data-delete-customer="${customer.id}">Delete</button></td></tr>`).join("")
+  const query = $("customerSearch")?.value.trim().toLowerCase() || "";
+  const filtered = customers.filter((customer) => [customer.name, customer.email, customer.phone].some((value) => String(value || "").toLowerCase().includes(query)));
+  document.getElementById("customersBody").innerHTML = filtered.length
+    ? filtered.map((customer) => `<tr><td>${customer.id}</td><td>${escapeHtml(customer.name)}</td><td>${escapeHtml(customer.phone)}</td><td>${escapeHtml(customer.email)}</td><td class="pre-line">${escapeHtml(customer.address)}</td><td><button class="tiny-button secondary-button" data-history-customer="${customer.id}">View History</button><button class="tiny-button secondary-button" data-edit-customer="${customer.id}">Edit</button><button class="tiny-button danger-button" data-delete-customer="${customer.id}">Delete</button></td></tr>`).join("")
     : `<tr><td colspan="6" class="text-center text-slate-500">No customers yet.</td></tr>`;
 }
 
@@ -169,7 +172,10 @@ async function handleClick(event) {
   if (button.dataset.editProduct) return fillProduct(button.dataset.editProduct);
   if (button.dataset.editTechnician) return fillTechnician(button.dataset.editTechnician);
   if (button.dataset.editCustomer) return fillCustomer(button.dataset.editCustomer);
+  if (button.dataset.historyCustomer) return showHistory(button.dataset.historyCustomer);
 }
+
+function showHistory(id) { const customer = customers.find((item) => String(item.id) === String(id)); const items = bookings.filter((booking) => booking.status === "Completed" && String(booking.customer).trim().toLowerCase() === String(customer?.name || "").trim().toLowerCase()); $("historyTitle").textContent = `${customer?.name || "Customer"} — Service History`; $("historyBody").innerHTML = items.length ? items.map((booking) => `<article class="history-entry"><strong>${escapeHtml(booking.service)}</strong><span>${escapeHtml(booking.preferredDate || booking.scheduleDate || "Date not set")} · ${escapeHtml(booking.preferredTime || booking.scheduleTime || "Time not set")}</span><b>${peso(booking.totalAmount)}</b></article>`).join("") : `<p class="empty-note">No completed services found.</p>`; $("historyModal").classList.remove("hidden"); }
 
 async function changeBooking(id, status) {
   await updateBookingStatus(id, status);
@@ -202,13 +208,14 @@ function fillService(id) {
   document.getElementById("servicePrice").value = item.price || "";
   document.getElementById("serviceInclusion").value = item.inclusion || "";
   document.getElementById("serviceExclusion").value = item.exclusion || "";
+  $("serviceExistingImage").value = item.image || "";
   openModal("serviceModal");
 }
 
 async function saveService(event) {
   event.preventDefault();
   const id = $("serviceId").value;
-  const payload = { name: $("serviceName").value.trim(), type: $("serviceType").value.trim(), price: $("servicePrice").value.trim(), inclusion: $("serviceInclusion").value.trim(), exclusion: $("serviceExclusion").value.trim() };
+  const payload = { name: $("serviceName").value.trim(), type: $("serviceType").value.trim(), price: $("servicePrice").value.trim(), inclusion: $("serviceInclusion").value.trim(), exclusion: $("serviceExclusion").value.trim(), image: await fileToDataUrl($("serviceImage"), $("serviceExistingImage").value) };
   if (!payload.name) return toast("Service name is required.");
   if (!payload.type) return toast("Service type is required.");
   if (payload.price === "" || Number(payload.price) < 0) return toast("Price cannot be negative.");
@@ -247,7 +254,7 @@ function fillTechnician(id) {
   const item = technicians.find((tech) => String(tech.id) === String(id));
   $("technicianId").value = item.id;
   $("technicianName").value = item.name || "";
-  $("technicianSpecialty").value = item.specialty || "";
+  $("technicianFields").querySelectorAll("input").forEach((input) => { input.checked = (item.specialty || "").split(",").map((value) => value.trim()).includes(input.value); });
   $("technicianStatus").value = item.status || "Active";
   $("technicianPhone").value = item.phoneNumber || "";
   $("technicianEmail").value = item.email || "";
@@ -265,14 +272,15 @@ async function saveTechnician(event) {
     toast("Profile photo must be a JPG, JPEG, or PNG file.");
     return;
   }
-  const phoneNumber = $("technicianPhone").value.trim();
+  const phoneNumber = $("technicianPhone").value.replace(/\D/g, "").slice(0, 11);
+  $("technicianPhone").value = phoneNumber;
   if (!isValidPhilippineMobile(phoneNumber)) {
-    toast("Please enter a valid Philippine mobile number.");
+    $("technicianPhoneError").classList.remove("hidden");
     return;
   }
   const payload = {
     name: $("technicianName").value.trim(),
-    specialty: $("technicianSpecialty").value.trim(),
+    specialty: [...$("technicianFields").querySelectorAll("input:checked")].map((input) => input.value).join(", "),
     status: $("technicianStatus").value,
     phoneNumber,
     email: $("technicianEmail").value.trim(),
@@ -303,9 +311,11 @@ function fillCustomer(id) {
 async function saveCustomer(event) {
   event.preventDefault();
   const id = $("customerId").value;
-  const payload = { name: $("customerName").value.trim(), phone: $("customerPhone").value.trim(), email: $("customerEmail").value.trim(), address: $("customerAddress").value.trim() };
+  const phoneInput = $("customerPhone");
+  phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, 11);
+  const payload = { name: $("customerName").value.trim(), phone: phoneInput.value, email: $("customerEmail").value.trim(), address: $("customerAddress").value.trim() };
   if (!isValidPhilippineMobile(payload.phone)) {
-    toast("Contact number must contain exactly 11 digits.");
+    $("customerPhoneError").classList.remove("hidden");
     return;
   }
   try {

@@ -54,6 +54,10 @@ export function registerAccount(account) {
   });
 }
 
+export function changePassword(payload) {
+  return requestJson("/api/auth/change-password", { method: "PUT", body: JSON.stringify(payload) });
+}
+
 export function getProducts() {
   return requestJson("/api/products");
 }

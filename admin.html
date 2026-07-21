@@ -99,6 +99,7 @@
           </div>
         </div>
         <section class="panel">
+          <input id="customerSearch" class="table-search" type="search" placeholder="Search by name, email, or phone" />
           <table class="data-table">
             <thead>
               <tr><th>ID</th><th>Customer</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th><th>Actions</th></tr>
@@ -166,7 +167,7 @@
         <section class="panel">
           <table class="data-table">
             <thead>
-              <tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Specialty</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Fields</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody id="techniciansBody"></tbody>
           </table>
@@ -217,11 +218,13 @@
         <button type="button" class="icon-button" data-close>x</button>
       </div>
       <input type="hidden" id="serviceId" />
+      <input type="hidden" id="serviceExistingImage" />
       <label class="form-field"><span>Name</span><input id="serviceName" required /></label>
       <label class="form-field"><span>Type</span><input id="serviceType" required /></label>
       <label class="form-field"><span>Price</span><input id="servicePrice" type="number" min="0" step="0.01" required /></label>
       <label class="form-field"><span>Inclusion</span><textarea id="serviceInclusion"></textarea></label>
       <label class="form-field"><span>Exclusion</span><textarea id="serviceExclusion"></textarea></label>
+      <label class="form-field"><span>Image</span><input id="serviceImage" type="file" accept="image/*" /></label>
       <div class="modal-actions">
         <button type="button" class="secondary-button" data-close>Cancel</button>
         <button class="primary-button">Save</button>
@@ -259,9 +262,9 @@
       </div>
       <input type="hidden" id="technicianId" />
       <label class="form-field"><span>Name</span><input id="technicianName" required /></label>
-      <label class="form-field"><span>Specialty</span><input id="technicianSpecialty" required /></label>
+      <fieldset class="form-field"><legend>Fields</legend><div id="technicianFields" class="field-checks"><label><input type="checkbox" value="Install" /> Install</label><label><input type="checkbox" value="Repair" /> Repair</label><label><input type="checkbox" value="Relocation" /> Relocation</label><label><input type="checkbox" value="Other" /> Other</label></div></fieldset>
       <label class="form-field"><span>Status</span><select id="technicianStatus"><option>Active</option><option>Inactive</option></select></label>
-      <label class="form-field"><span>Phone Number</span><input id="technicianPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /></label>
+      <label class="form-field"><span>Phone Number</span><input id="technicianPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /><small id="technicianPhoneError" class="field-error hidden">Enter a valid 11-digit PH phone number starting with 09.</small></label>
       <label class="form-field"><span>Email</span><input id="technicianEmail" type="email" required /></label>
       <label class="form-field"><span>Address</span><textarea id="technicianAddress" required></textarea></label>
       <label class="form-field"><span>Profile Photo</span><input id="technicianPhoto" type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" /></label>
@@ -281,7 +284,7 @@
       </div>
       <input type="hidden" id="customerId" />
       <label class="form-field"><span>Name</span><input id="customerName" required /></label>
-      <label class="form-field"><span>Phone</span><input id="customerPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /></label>
+      <label class="form-field"><span>Phone</span><input id="customerPhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /><small id="customerPhoneError" class="field-error hidden">Enter a valid 11-digit PH phone number starting with 09.</small></label>
       <label class="form-field"><span>Email</span><input id="customerEmail" type="email" required /></label>
       <label class="form-field"><span>Address</span><input id="customerAddress" required /></label>
       <div class="modal-actions">
@@ -290,6 +293,8 @@
       </div>
     </form>
   </div>
+
+  <div id="historyModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3 id="historyTitle">Service History</h3><button type="button" class="icon-button" data-close>x</button></div><div id="historyBody"></div></section></div>
 
   <div id="toast" class="toast hidden"></div>
   <script type="module" src="js/admin-page.js"></script>

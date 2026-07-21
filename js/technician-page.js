@@ -1,4 +1,4 @@
-import { getBookings, getCustomers, getMyTechnicianProfile, updateMyTechnicianProfile, updateTechnicianJobStatus } from "./api.js";
+import { changePassword, getBookings, getCustomers, getMyTechnicianProfile, updateMyTechnicianProfile, updateTechnicianJobStatus } from "./api.js";
 import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, requireRole, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("technician");
@@ -13,8 +13,10 @@ async function init() {
   bindTabs("dashboard");
   document.getElementById("logoutButton").addEventListener("click", logout);
   document.getElementById("profileForm").addEventListener("submit", saveProfile);
+  document.getElementById("technicianPasswordForm").addEventListener("submit", savePassword);
   document.getElementById("profileCancel").addEventListener("click", () => renderProfile(profile));
   document.getElementById("profilePhoto").addEventListener("change", previewProfilePhoto);
+  document.getElementById("profilePhone").addEventListener("input", () => validateProfilePhone());
   document.body.addEventListener("change", async (event) => {
     if (!event.target.matches("[data-job-status]")) return;
     await updateTechnicianJobStatus(event.target.dataset.jobStatus, event.target.value);
@@ -72,7 +74,7 @@ async function previewProfilePhoto(event) {
 async function saveProfile(event) {
   event.preventDefault();
   const phoneNumber = document.getElementById("profilePhone").value.trim();
-  if (!isValidPhilippineMobile(phoneNumber)) return toast("Please enter a valid Philippine mobile number.");
+  if (!validateProfilePhone()) return;
   const photoInput = document.getElementById("profilePhoto");
   const payload = {
     name: document.getElementById("profileName").value.trim(),
@@ -90,6 +92,10 @@ async function saveProfile(event) {
   }
 }
 
+function validateProfilePhone() { const input = document.getElementById("profilePhone"); input.value = input.value.replace(/\D/g, "").slice(0, 11); const valid = isValidPhilippineMobile(input.value); document.getElementById("profilePhoneError").classList.toggle("hidden", valid || !input.value); input.setCustomValidity(valid ? "" : "Enter a valid 11-digit PH phone number starting with 09."); return valid; }
+
 function jobRow(booking) {
   return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml(booking.address || [booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" "))}</td><td>${statusBadge(booking.status)}</td><td><select data-job-status="${booking.id}"><option ${booking.status === "Approved" ? "selected" : ""}>Approved</option><option ${booking.status === "In Progress" ? "selected" : ""}>In Progress</option><option ${booking.status === "Completed" ? "selected" : ""}>Completed</option><option ${booking.status === "Unable to Complete" ? "selected" : ""}>Unable to Complete</option></select></td></tr>`;
 }
+
+async function savePassword(event) { event.preventDefault(); const message = document.getElementById("technicianPasswordMessage"); const next = document.getElementById("technicianNewPassword").value; if (next !== document.getElementById("technicianConfirmPassword").value) { message.textContent = "New passwords do not match."; return; } try { const result = await changePassword({ currentPassword: document.getElementById("technicianCurrentPassword").value, newPassword: next, confirmPassword: document.getElementById("technicianConfirmPassword").value }); message.textContent = result.message; event.target.reset(); } catch (error) { message.textContent = error.message; } }

@@ -42,15 +42,16 @@
             </div>
             <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label class="form-field"><span>Technician ID</span><input id="profileId" readonly /></label>
-              <label class="form-field"><span>Specialty</span><input id="profileSpecialty" readonly /></label>
+              <label class="form-field"><span>Fields</span><input id="profileSpecialty" readonly /></label>
               <label class="form-field"><span>Status</span><input id="profileStatus" readonly /></label>
               <label class="form-field"><span>Name</span><input id="profileName" required /></label>
-              <label class="form-field"><span>Phone Number</span><input id="profilePhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /></label>
+              <label class="form-field"><span>Phone Number</span><input id="profilePhone" inputmode="numeric" pattern="09[0-9]{9}" maxlength="11" required /><small id="profilePhoneError" class="field-error hidden">Enter a valid 11-digit PH phone number starting with 09.</small></label>
               <label class="form-field"><span>Email</span><input id="profileEmail" type="email" required /></label>
               <label class="form-field md:col-span-2"><span>Address</span><textarea id="profileAddress" required></textarea></label>
             </div>
             <div class="flex justify-end gap-3"><button type="button" id="profileCancel" class="secondary-button">Cancel</button><button class="primary-button">Save Changes</button></div>
           </form>
+          <form id="technicianPasswordForm" class="password-panel"><h3>Change Password</h3><div class="grid grid-cols-1 gap-4 md:grid-cols-3"><label class="form-field"><span>Current password</span><input id="technicianCurrentPassword" type="password" required /></label><label class="form-field"><span>New password</span><input id="technicianNewPassword" type="password" required /></label><label class="form-field"><span>Confirm new password</span><input id="technicianConfirmPassword" type="password" required /></label></div><p id="technicianPasswordMessage" class="form-message" role="status"></p><button class="primary-button">Change Password</button></form>
         </section>
       </section>
     </main>

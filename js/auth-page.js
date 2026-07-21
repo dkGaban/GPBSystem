@@ -2,6 +2,14 @@ import { login, registerAccount, setSession } from "./api.js";
 import { isStrongPassword, isValidPhilippineMobile, toast } from "./portal-utils.js";
 
 const $ = (id) => document.getElementById(id);
+const next = new URLSearchParams(window.location.search).get("next");
+
+$("togglePassword").addEventListener("click", () => {
+  const password = $("loginPassword");
+  password.type = password.type === "password" ? "text" : "password";
+  $("togglePassword").textContent = password.type === "password" ? "Show" : "Hide";
+});
+$("registerPhone").addEventListener("input", () => validatePhone());
 
 document.querySelectorAll("[data-auth-tab]").forEach((button) => {
   button.addEventListener("click", () => {
@@ -20,7 +28,7 @@ document.getElementById("loginForm").addEventListener("submit", async (event) =>
     });
     setSession(session);
     const routes = { admin: "admin.html", customer: "customer.html", technician: "technician.html" };
-    window.location.href = routes[session.user.role] || "customer.html";
+    window.location.href = session.user.role === "customer" && next === "book" ? "customer.html?tab=book" : (routes[session.user.role] || "customer.html");
   } catch (error) {
     toast(error.message);
   }
@@ -31,8 +39,7 @@ document.getElementById("registerForm").addEventListener("submit", async (event)
   const phone = $("registerPhone").value.trim();
   const password = $("registerPassword").value;
 
-  if (!isValidPhilippineMobile(phone)) {
-    toast("Please enter a valid Philippine mobile number.");
+  if (!validatePhone()) {
     return;
   }
 
@@ -56,8 +63,14 @@ document.getElementById("registerForm").addEventListener("submit", async (event)
       zipCode: $("registerZipCode").value.trim()
     });
     setSession(session);
-    window.location.href = "customer.html";
+    window.location.replace(next === "book" ? "customer.html?tab=book" : "customer.html");
   } catch (error) {
     toast(error.message);
   }
 });
+
+if (new URLSearchParams(window.location.search).get("tab") === "register") {
+  document.querySelector('[data-auth-tab="register"]').click();
+}
+
+function validatePhone() { const input = $("registerPhone"); input.value = input.value.replace(/\D/g, "").slice(0, 11); const valid = isValidPhilippineMobile(input.value); $("registerPhoneError").classList.toggle("hidden", valid || !input.value); input.setCustomValidity(valid ? "" : "Enter a valid 11-digit PH phone number starting with 09."); return valid; }

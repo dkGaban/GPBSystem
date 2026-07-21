@@ -99,7 +99,6 @@
           </div>
         </div>
         <section class="panel">
-          <input id="customerSearch" class="table-search" type="search" placeholder="Search by name, email, or phone" />
           <table class="data-table">
             <thead>
               <tr><th>ID</th><th>Customer</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th><th>Actions</th></tr>
@@ -119,9 +118,8 @@
         <section class="panel">
           <form id="scheduleForm" class="form-grid">
             <label class="form-field"><span>Booking</span><select id="scheduleBooking"></select></label>
-            <label class="form-field"><span>Technician</span><select id="scheduleTechnician"></select></label>
-            <label class="form-field"><span>Date</span><input id="scheduleDate" type="date" required /></label>
-            <label class="form-field"><span>Time</span><input id="scheduleTime" type="time" /></label>
+            <div class="schedule-requested form-field"><span>Customer requested schedule</span><div class="schedule-requested-value"><strong id="scheduleRequestedDate">Select a booking</strong><span id="scheduleRequestedTime">—</span></div><small id="scheduleServiceHint">The customer's preferred date and time are read-only.</small></div>
+            <label class="form-field full"><span>Technician</span><select id="scheduleTechnician"></select><small id="scheduleTechnicianHint" class="field-hint"></small></label>
             <button class="primary-button">Assign Technician</button>
           </form>
         </section>
@@ -131,14 +129,14 @@
         <div class="page-heading">
           <div>
             <h2>Services</h2>
-            <p>Create and manage service offerings.</p>
+            <p>Create and manage priced variants within each service category.</p>
           </div>
           <button class="primary-button" data-open="serviceModal">Add Service</button>
         </div>
         <section class="panel">
           <table class="data-table">
             <thead>
-              <tr><th>ID</th><th>Name</th><th>Type</th><th>Price</th><th>Inclusion</th><th>Exclusion</th><th>Actions</th></tr>
+              <tr><th>ID</th><th>Category</th><th>Variant</th><th>Price</th><th>Inclusion</th><th>Exclusion</th><th>Actions</th></tr>
             </thead>
             <tbody id="servicesBody"></tbody>
           </table>
@@ -183,6 +181,7 @@
           <button class="primary-button" data-open="customerModal">Add Customer</button>
         </div>
         <section class="panel">
+          <input id="customerSearch" class="table-search" type="search" placeholder="Search customers by name, phone, or email" aria-label="Search customers" />
           <table class="data-table">
             <thead>
               <tr><th>ID</th><th>Name</th><th>Phone</th><th>Email</th><th>Address</th><th>Actions</th></tr>
@@ -214,13 +213,13 @@
   <div id="serviceModal" class="modal hidden">
     <form class="modal-card" id="serviceForm">
       <div class="modal-header">
-        <h3>Service</h3>
+        <h3>Service Variant</h3>
         <button type="button" class="icon-button" data-close>x</button>
       </div>
       <input type="hidden" id="serviceId" />
       <input type="hidden" id="serviceExistingImage" />
-      <label class="form-field"><span>Name</span><input id="serviceName" required /></label>
-      <label class="form-field"><span>Type</span><input id="serviceType" required /></label>
+      <label class="form-field"><span>Category</span><input id="serviceType" placeholder="e.g. Cleaning, Installation, Relocation" required /></label>
+      <label class="form-field"><span>Variant name</span><input id="serviceName" placeholder="e.g. Window Type or 1hp to 1.5hp" required /></label>
       <label class="form-field"><span>Price</span><input id="servicePrice" type="number" min="0" step="0.01" required /></label>
       <label class="form-field"><span>Inclusion</span><textarea id="serviceInclusion"></textarea></label>
       <label class="form-field"><span>Exclusion</span><textarea id="serviceExclusion"></textarea></label>

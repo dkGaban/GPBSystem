@@ -114,7 +114,27 @@ export function renderProducts(products, options = {}) {
 export function renderServiceCards(services, options = {}) {
   const target = document.getElementById(options.targetId || "servicesGrid");
   if (!target) return;
-  target.innerHTML = services.length ? services.map((service) => `<article class="service-card"><div class="service-image-placeholder">${service.image ? `<img src="${escapeHtml(service.image)}" alt="${escapeHtml(service.name)}">` : `<span class="nav-icon icon-service"></span>`}</div><div class="service-card-body"><p class="service-type">${escapeHtml(service.type || "Service")}</p><h3>${escapeHtml(service.name)}</h3><p class="service-price">${peso(service.price)}</p><p class="service-description">${escapeHtml(service.inclusion || "Professional service tailored to your requirements.")}</p><button class="primary-button" ${options.customer ? `data-book-service="${escapeHtml(service.name)}"` : "data-login-required"}>${options.customer ? "Book" : "Login to Book"}</button></div></article>`).join("") : `<p class="empty-note">No services available.</p>`;
+  if (!services.length) {
+    target.innerHTML = `<p class="empty-note">No services available.</p>`;
+    return;
+  }
+
+  const categories = new Map();
+  services.forEach((service) => {
+    const category = String(service.type || "Uncategorized").trim() || "Uncategorized";
+    if (!categories.has(category)) categories.set(category, []);
+    categories.get(category).push(service);
+  });
+  target.innerHTML = [...categories.entries()].map(([category, variants]) => `
+    <article class="service-category-card">
+      <div class="service-category-heading"><span class="nav-icon icon-service"></span><div><p>Service category</p><h3>${escapeHtml(category)}</h3></div><span>${variants.length} ${variants.length === 1 ? "variant" : "variants"}</span></div>
+      <div class="service-variant-list">
+        ${variants.map((service) => `<article class="service-variant-row">
+          <div class="service-variant-copy">${service.image ? `<img src="${escapeHtml(service.image)}" alt="${escapeHtml(service.name)}">` : ""}<div><h4>${escapeHtml(service.name)}</h4><p>${escapeHtml(service.inclusion || "Professional service tailored to your requirements.")}</p></div></div>
+          <div class="service-variant-action"><strong>${peso(service.price)}</strong><button class="tiny-button secondary-button" ${options.customer ? `data-book-service="${service.id}"` : "data-login-required"}>${options.customer ? "Book" : "Login to Book"}</button></div>
+        </article>`).join("")}
+      </div>
+    </article>`).join("");
 }
 
 function productActions(product, options) {

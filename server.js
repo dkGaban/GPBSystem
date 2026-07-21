@@ -55,6 +55,36 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(email));
 }
 
+function isPastOrInvalidCalendarDate(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return true;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (date.getFullYear() !== Number(match[1]) || date.getMonth() !== Number(match[2]) - 1 || date.getDate() !== Number(match[3])) return true;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return date < today;
+}
+
+function slotToMinuteRange(slot) {
+  const parseTime = (value) => {
+    const match = String(value || "").trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+    if (!match) return null;
+    let hours = Number(match[1]);
+    const minutes = Number(match[2] || 0);
+    if (hours === 12) hours = 0;
+    if (match[3].toUpperCase() === "PM") hours += 12;
+    return hours * 60 + minutes;
+  };
+  const values = String(slot || "").split(/\s*(?:–|—|-)\s*/).map(parseTime);
+  return values.length === 2 && values.every(Number.isFinite) ? values : null;
+}
+
+function timeSlotsOverlap(firstSlot, secondSlot) {
+  const first = slotToMinuteRange(firstSlot);
+  const second = slotToMinuteRange(secondSlot);
+  return first && second ? first[0] < second[1] && second[0] < first[1] : String(firstSlot) === String(secondSlot);
+}
+
 function validateTechnicianPayload({ name, specialty, phoneNumber, email, address }) {
   if (!String(name || "").trim() || !String(specialty || "").trim()) return "Name and fields are required.";
   if (!isValidPhilippineMobile(phoneNumber)) return "Phone number must be an 11-digit Philippine mobile number starting with 09.";
@@ -87,7 +117,7 @@ function formatAddress(parts = {}) {
     parts.province,
     parts.zipCode
   ];
-  return values.map((value) => String(value || "").trim()).filter(Boolean).join(",\n");
+  return values.map((value) => String(value || "").trim()).filter(Boolean).join(", ");
 }
 
 function addressFromBody(body = {}) {
@@ -107,8 +137,8 @@ function addressFromBody(body = {}) {
 }
 
 function validateServicePayload({ name, type, price }) {
-  if (!String(name || "").trim()) return "Service name is required.";
-  if (!String(type || "").trim()) return "Service type is required.";
+  if (!String(name || "").trim()) return "Variant name is required.";
+  if (!String(type || "").trim()) return "Category is required.";
   if (price === undefined || price === null || String(price).trim() === "") return "Price is required.";
   const amount = Number(price);
   if (!Number.isFinite(amount) || amount < 0) return "Price cannot be negative.";
@@ -481,8 +511,8 @@ app.get("/api/logs", requireUser, requireAdmin, async (req, res) => {
         TargetType AS targetType,
         TargetId AS targetId,
         CreatedAt AS createdAt
-      FROM ActionLogs
-      ORDER BY Id DESC
+        FROM ActionLogs
+        ORDER BY Id DESC
     `);
 
     res.json(result.recordset);
@@ -501,11 +531,11 @@ app.get("/api/customers", requireUser, async (req, res) => {
         Phone AS phone,
         Email AS email,
         COALESCE(NULLIF(CONCAT(
-          NULLIF(HouseNumber, ''), CASE WHEN NULLIF(HouseNumber, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
-          NULLIF(Street, ''), CASE WHEN NULLIF(Street, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
-          CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN CONCAT('Barangay ', REPLACE(Barangay, 'Barangay ', '')) ELSE NULL END, CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
-          NULLIF(City, ''), CASE WHEN NULLIF(City, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
-          NULLIF(Province, ''), CASE WHEN NULLIF(Province, '') IS NOT NULL THEN CHAR(13) + CHAR(10) ELSE '' END,
+          NULLIF(HouseNumber, ''), CASE WHEN NULLIF(HouseNumber, '') IS NOT NULL THEN ', ' ELSE '' END,
+          NULLIF(Street, ''), CASE WHEN NULLIF(Street, '') IS NOT NULL THEN ', ' ELSE '' END,
+          CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN CONCAT('Barangay ', REPLACE(Barangay, 'Barangay ', '')) ELSE NULL END, CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN ', ' ELSE '' END,
+          NULLIF(City, ''), CASE WHEN NULLIF(City, '') IS NOT NULL THEN ', ' ELSE '' END,
+          NULLIF(Province, ''), CASE WHEN NULLIF(Province, '') IS NOT NULL THEN ', ' ELSE '' END,
           NULLIF(ZipCode, '')
         ), ''), Address) AS address,
         HouseNumber AS houseNumber,
@@ -776,7 +806,10 @@ app.delete("/api/technicians/:id", requireUser, requireAdmin, async (req, res) =
 app.get("/api/bookings", requireUser, async (req, res) => {
   try {
     const pool = await getPool();
-    const result = await pool.request().query(`
+    const request = pool.request();
+    const customerFilter = req.user.role === "customer" ? "WHERE LOWER(b.Email) = LOWER(@Email)" : "";
+    if (req.user.role === "customer") request.input("Email", sql.NVarChar(150), req.user.email);
+    const result = await request.query(`
       SELECT
         b.Id AS id,
         b.CustomerName AS customer,
@@ -794,6 +827,7 @@ app.get("/api/bookings", requireUser, async (req, res) => {
       FROM Bookings b
       LEFT JOIN Schedules s ON s.BookingId = b.Id
       LEFT JOIN Technicians t ON t.Id = s.TechnicianId
+      ${customerFilter}
       ORDER BY b.Id DESC
     `);
     res.json(result.recordset);
@@ -805,22 +839,27 @@ app.get("/api/bookings", requireUser, async (req, res) => {
 app.post("/api/bookings", requireUser, async (req, res) => {
   const { customer, phone, email, service, services = [], address, preferredDate, preferredTime } = req.body;
   const selectedServices = Array.isArray(services) && services.length ? services : String(service || "").split(",").map((item) => item.trim()).filter(Boolean);
-  const serviceNames = selectedServices.map((item) => String(item.name || item).trim()).filter(Boolean);
-  const serviceLabel = serviceNames.join(", ");
-  if (!customer || !serviceLabel || !address || !preferredDate || !preferredTime) {
+  if (!customer || !selectedServices.length || !address || !preferredDate || !preferredTime) {
     return res.status(400).json({ message: "Missing required booking fields." });
   }
   if (phone && !isValidPhilippineMobile(phone)) {
     return res.status(400).json({ message: "Please enter a valid Philippine mobile number." });
   }
+  if (isPastOrInvalidCalendarDate(preferredDate)) {
+    return res.status(400).json({ message: "Preferred date cannot be in the past. Please choose today or a future date." });
+  }
 
   try {
     const pool = await getPool();
-    const pricedServices = await Promise.all(serviceNames.map(async (name) => {
-      const result = await pool.request().input("Name", sql.NVarChar(100), name).query("SELECT TOP 1 Price FROM Services WHERE Name = @Name");
+    const pricedServices = await Promise.all(selectedServices.map(async (selected) => {
+      const id = Number(selected?.id);
+      const result = Number.isInteger(id) && id > 0
+        ? await pool.request().input("Id", sql.Int, id).query("SELECT TOP 1 Id, Name, Type, Price FROM Services WHERE Id = @Id")
+        : await pool.request().input("Name", sql.NVarChar(100), String(selected?.name || selected).trim()).query("SELECT TOP 1 Id, Name, Type, Price FROM Services WHERE Name = @Name");
       return result.recordset[0];
     }));
     if (pricedServices.some((item) => !item)) return res.status(400).json({ message: "One or more selected services are no longer available." });
+    const serviceLabel = pricedServices.map((item) => `${item.Type || "Uncategorized"} - ${item.Name}`).join(", ");
     const serviceTotal = pricedServices.reduce((sum, item) => sum + Number(item.Price || 0), 0);
     const result = await pool
       .request()
@@ -903,6 +942,24 @@ app.put("/api/bookings/:id/technician-status", requireUser, async (req, res) => 
   }
 });
 
+app.put("/api/bookings/:id/cancel", requireUser, async (req, res) => {
+  if (req.user.role !== "customer") return res.status(403).json({ message: "Customer access required." });
+  try {
+    const pool = await getPool();
+    const booking = await pool.request()
+      .input("Id", sql.Int, Number(req.params.id))
+      .input("Email", sql.NVarChar(150), req.user.email)
+      .query("SELECT Id, Status FROM Bookings WHERE Id = @Id AND LOWER(Email) = LOWER(@Email)");
+    if (!booking.recordset.length) return res.status(404).json({ message: "Booking not found." });
+    if (["Completed", "Cancelled"].includes(booking.recordset[0].Status)) return res.status(400).json({ message: "This booking can no longer be cancelled." });
+    await pool.request().input("Id", sql.Int, Number(req.params.id)).query("DELETE FROM Schedules WHERE BookingId = @Id; UPDATE Bookings SET Status = 'Cancelled' WHERE Id = @Id;");
+    await logAction(`Cancelled booking ${req.params.id}`, actorName(req), "Bookings", req.params.id);
+    res.json({ id: Number(req.params.id), status: "Cancelled" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 app.delete("/api/bookings/:id", requireUser, requireAdmin, async (req, res) => {
   try {
     const pool = await getPool();
@@ -915,25 +972,50 @@ app.delete("/api/bookings/:id", requireUser, requireAdmin, async (req, res) => {
 });
 
 app.post("/api/schedules", requireUser, requireAdmin, async (req, res) => {
-  const { bookingId, technicianId, scheduleDate, scheduleTime } = req.body;
-  if (!bookingId || !technicianId || !scheduleDate) return res.status(400).json({ message: "Missing required schedule fields." });
+  const { bookingId, technicianId } = req.body;
+  if (!bookingId || !technicianId) return res.status(400).json({ message: "Select a booking and technician." });
 
   try {
     const pool = await getPool();
-    await pool
-      .request()
+    const bookingResult = await pool.request().input("BookingId", sql.Int, Number(bookingId)).query(`
+      SELECT PreferredDate AS scheduleDate, PreferredTime AS scheduleTime, Status AS status
+      FROM Bookings WHERE Id = @BookingId
+    `);
+    if (!bookingResult.recordset.length) return res.status(404).json({ message: "Booking not found." });
+    const requested = bookingResult.recordset[0];
+    if (!requested.scheduleDate || !requested.scheduleTime) return res.status(400).json({ message: "This booking has no preferred date and time." });
+    if (requested.status !== "Approved") return res.status(400).json({ message: "Only approved bookings can be assigned. Use a separate schedule-edit flow to change an existing assignment." });
+    const technicianResult = await pool.request()
+      .input("TechnicianId", sql.Int, Number(technicianId))
+      .query(`
+        SELECT Id FROM Technicians WHERE Id = @TechnicianId AND Status = 'Active'
+      `);
+    if (!technicianResult.recordset.length) return res.status(400).json({ message: "Select an active technician." });
+    const assignments = await pool.request()
+      .input("TechnicianId", sql.Int, Number(technicianId))
+      .input("ScheduleDate", sql.Date, requested.scheduleDate)
+      .query(`
+        SELECT s.BookingId, s.ScheduleTime
+        FROM Schedules s
+        WHERE s.TechnicianId = @TechnicianId
+          AND s.ScheduleDate = @ScheduleDate
+      `);
+    if (assignments.recordset.some((assignment) => Number(assignment.BookingId) !== Number(bookingId) && timeSlotsOverlap(assignment.ScheduleTime, requested.scheduleTime))) {
+      return res.status(409).json({ message: "This technician is already assigned during the customer's requested time slot." });
+    }
+    await pool.request()
       .input("BookingId", sql.Int, Number(bookingId))
       .input("TechnicianId", sql.Int, Number(technicianId))
-      .input("ScheduleDate", sql.Date, scheduleDate)
-      .input("ScheduleTime", sql.NVarChar(50), scheduleTime || "")
+      .input("ScheduleDate", sql.Date, requested.scheduleDate)
+      .input("ScheduleTime", sql.NVarChar(50), requested.scheduleTime)
       .query(`
         DELETE FROM Schedules WHERE BookingId = @BookingId;
         INSERT INTO Schedules (BookingId, TechnicianId, ScheduleDate, ScheduleTime, Status)
         VALUES (@BookingId, @TechnicianId, @ScheduleDate, @ScheduleTime, 'Assigned');
-        UPDATE Bookings SET Status = 'Approved' WHERE Id = @BookingId;
+        UPDATE Bookings SET Status = 'Scheduled' WHERE Id = @BookingId;
       `);
     await logAction(`Assigned technician ${technicianId} to booking ${bookingId}`, actorName(req), "Schedules", bookingId);
-    res.status(201).json({ ok: true });
+    res.status(201).json({ ok: true, scheduleDate: requested.scheduleDate, scheduleTime: requested.scheduleTime });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -975,7 +1057,7 @@ app.get("/api/services", async (req, res) => {
         Exclusion AS exclusion,
         Image AS image
       FROM Services
-      ORDER BY Id DESC
+      ORDER BY Type, Name
     `);
 
     res.json(result.recordset);
@@ -992,8 +1074,11 @@ app.post("/api/services", requireUser, requireAdmin, async (req, res) => {
 
   try {
     const pool = await getPool();
-    const existing = await pool.request().input("Name", sql.NVarChar(100), name.trim()).query("SELECT TOP 1 Id FROM Services WHERE LOWER(Name) = LOWER(@Name)");
-    if (existing.recordset.length) return res.status(409).json({ message: "A service with this name already exists." });
+    const existing = await pool.request()
+      .input("Name", sql.NVarChar(100), name.trim())
+      .input("Type", sql.NVarChar(100), type.trim())
+      .query("SELECT TOP 1 Id FROM Services WHERE LOWER(Name) = LOWER(@Name) AND LOWER(Type) = LOWER(@Type)");
+    if (existing.recordset.length) return res.status(409).json({ message: "This category already has a variant with that name." });
 
     const result = await pool
       .request()
@@ -1035,8 +1120,9 @@ app.put("/api/services/:id", requireUser, requireAdmin, async (req, res) => {
       .request()
       .input("Id", sql.Int, Number(req.params.id))
       .input("Name", sql.NVarChar(100), name.trim())
-      .query("SELECT TOP 1 Id FROM Services WHERE LOWER(Name) = LOWER(@Name) AND Id <> @Id");
-    if (duplicate.recordset.length) return res.status(409).json({ message: "A service with this name already exists." });
+      .input("Type", sql.NVarChar(100), type.trim())
+      .query("SELECT TOP 1 Id FROM Services WHERE LOWER(Name) = LOWER(@Name) AND LOWER(Type) = LOWER(@Type) AND Id <> @Id");
+    if (duplicate.recordset.length) return res.status(409).json({ message: "This category already has a variant with that name." });
 
     const result = await pool
       .request()

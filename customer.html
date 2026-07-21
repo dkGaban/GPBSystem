@@ -17,7 +17,7 @@
   <div class="portal-shell website-shell">
     <header class="website-nav">
       <a class="website-brand" href="customer.html"><span class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></span><strong>GBP Electro Mechanical Services</strong></a>
-      <nav class="website-links" aria-label="Main navigation"><a class="website-link active" href="customer.html#services">Services</a><a class="website-link" href="customer.html#products">Products</a><button class="website-link" data-tab="book">Book a Service</button></nav>
+      <nav class="website-links" aria-label="Main navigation"><a class="website-link active" href="customer.html#services" data-home-section="services">Services</a><a class="website-link" href="customer.html#products" data-home-section="products">Products</a><button class="website-link" data-tab="book">Book a Service</button></nav>
       <div class="website-actions"><button class="sign-up-link" data-tab="profile">My Account</button><button id="logoutButton" class="secondary-button">Log Out</button></div>
     </header>
     <main class="portal-main">
@@ -27,20 +27,20 @@
         <section class="panel">
           <form id="bookingForm" class="form-grid">
             <fieldset class="form-field full"><legend>Services</legend><div id="bookingServices" class="service-picker"></div></fieldset>
-            <label class="form-field"><span>Preferred Date</span><input id="bookingDate" type="date" required /></label>
+            <label class="form-field"><span>Preferred Date</span><input id="bookingDate" type="date" required /><small id="bookingDateError" class="field-error hidden">Preferred date cannot be in the past. Please choose today or a future date.</small></label>
             <fieldset class="form-field"><legend>Preferred time slot</legend><div id="bookingTimeSlots" class="time-slots"></div></fieldset>
             <label class="form-field full"><span>Address</span><input id="bookingAddress" required /></label>
-            <div class="booking-total full"><span>Booking total</span><strong id="bookingTotal">₱0.00</strong></div>
-            <button class="primary-button">Submit Booking Request</button>
+            <div class="booking-submit-row full"><div class="booking-total"><span>Booking total</span><strong id="bookingTotal">₱0.00</strong></div><button class="primary-button">Submit Booking Request</button></div>
           </form>
         </section>
       </section>
-      <section id="bookingsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>My Bookings</h2><p>Track your booking status.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>ID</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th></tr></thead><tbody id="bookingsBody"></tbody></table></section></section>
+      <section id="bookingsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>My Bookings</h2><p>Track your booking status.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>ID</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th><th>Actions</th></tr></thead><tbody id="bookingsBody"></tbody></table></section></section>
       <section id="profileTab" class="portal-tab hidden"><div class="page-heading"><div><h2>My Profile</h2><p>Update the details used for your booking requests.</p></div></div><section class="panel"><form id="profileForm" class="form-grid"><label class="form-field"><span>Full Name</span><input id="profileName" required /></label><label class="form-field"><span>Email</span><input id="profileEmail" type="email" required /></label><label class="form-field"><span>Phone Number</span><input id="profilePhone" inputmode="numeric" maxlength="11" required /><small id="profilePhoneError" class="field-error hidden">Enter a valid 11-digit PH phone number starting with 09.</small></label><label class="form-field full"><span>Address</span><input id="profileAddress" required /></label><button class="primary-button">Save Profile</button></form><form id="customerPasswordForm" class="password-panel"><h3>Change Password</h3><div class="form-grid"><label class="form-field"><span>Current password</span><input id="customerCurrentPassword" type="password" required /></label><label class="form-field"><span>New password</span><input id="customerNewPassword" type="password" required /></label><label class="form-field"><span>Confirm new password</span><input id="customerConfirmPassword" type="password" required /></label></div><p id="customerPasswordMessage" class="form-message" role="status"></p><button class="primary-button">Change Password</button></form></section></section>
     </main>
-    <footer class="site-footer"><div class="footer-grid"><div><strong class="footer-brand">GBP Electro Mechanical Services</strong><p>Dependable electro-mechanical services for your home and business.</p></div><div><h3>Quick links</h3><button data-tab="services">Services</button><button data-tab="products">Products</button><button data-tab="book">Book a Service</button></div><div><h3>Contact</h3><p>Phone: Add phone number</p><p>Email: Add email address</p><p>Address: Add business address</p></div><div><h3>Follow us</h3><div class="social-links"><a href="#" aria-label="Facebook">f</a><a href="#" aria-label="Instagram">◎</a><a href="#" aria-label="LinkedIn">in</a></div></div></div><div class="footer-bottom">© 2026 GBP Electro Mechanical Services. All rights reserved.</div></footer>
+    <footer class="site-footer"><div class="footer-grid"><div><strong class="footer-brand">GBP Electro Mechanical Services</strong><p>Dependable electro-mechanical services for your home and business.</p></div><div><h3>Quick links</h3><button data-home-section="services">Services</button><button data-home-section="products">Products</button><button data-tab="book">Book a Service</button></div><div><h3>Contact</h3><p>Phone: Add phone number</p><p>Email: Add email address</p><p>Address: Add business address</p></div><div><h3>Follow us</h3><div class="social-links"><a href="#" aria-label="Facebook">f</a><a href="#" aria-label="Instagram">◎</a><a href="#" aria-label="LinkedIn">in</a></div></div></div><div class="footer-bottom">© 2026 GBP Electro Mechanical Services. All rights reserved.</div></footer>
   </div>
   <div id="toast" class="toast hidden"></div>
+  <div id="bookingConfirmationModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="bookingConfirmationTitle"><section class="confirmation-card"><div class="confirmation-icon" aria-hidden="true">✓</div><h2 id="bookingConfirmationTitle">Request Submitted</h2><p>We've received your booking request. You'll be notified once it's approved.</p><button type="button" id="closeBookingConfirmation" class="primary-button">Done</button></section></div>
   <script type="module" src="js/customer-page.js"></script>
 </body>
 </html>

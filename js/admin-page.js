@@ -46,6 +46,7 @@ async function init() {
   document.getElementById("customerForm").addEventListener("submit", saveCustomer);
   document.getElementById("customerSearch").addEventListener("input", renderCustomers);
   document.getElementById("scheduleForm").addEventListener("submit", saveSchedule);
+  document.getElementById("scheduleBooking").addEventListener("change", updateScheduleSelection);
   await loadAll();
 }
 
@@ -106,10 +107,10 @@ function renderBookings() {
 
 function renderServices() {
   document.getElementById("servicesBody").innerHTML = services.length
-    ? services.map((service) => `<tr><td>${service.id}</td><td>${escapeHtml(service.name)}</td><td>${escapeHtml(service.type)}</td><td>${peso(service.price)}</td><td>${escapeHtml(service.inclusion)}</td><td>${escapeHtml(service.exclusion)}</td><td><button class="tiny-button secondary-button" data-edit-service="${service.id}">Edit</button><button class="tiny-button danger-button" data-delete-service="${service.id}">Delete</button></td></tr>`).join("")
+    ? services.map((service) => `<tr><td>${service.id}</td><td>${escapeHtml(service.type || "Uncategorized")}</td><td>${escapeHtml(service.name)}</td><td>${peso(service.price)}</td><td>${escapeHtml(service.inclusion)}</td><td>${escapeHtml(service.exclusion)}</td><td><button class="tiny-button secondary-button" data-edit-service="${service.id}">Edit</button><button class="tiny-button danger-button" data-delete-service="${service.id}">Delete</button></td></tr>`).join("")
     : `<tr><td colspan="7" class="text-center text-slate-500">No services yet.</td></tr>`;
   document.getElementById("dashboardServicesBody").innerHTML = services.length
-    ? services.slice(0, 4).map((service) => `<tr><td>${escapeHtml(service.name)}</td><td>${escapeHtml(service.inclusion || service.type)}</td><td><button class="tiny-button secondary-button" data-edit-service="${service.id}">Edit</button></td></tr>`).join("")
+    ? services.slice(0, 4).map((service) => `<tr><td>${escapeHtml(`${service.type || "Uncategorized"} — ${service.name}`)}</td><td>${escapeHtml(service.inclusion)}</td><td><button class="tiny-button secondary-button" data-edit-service="${service.id}">Edit</button></td></tr>`).join("")
     : `<tr><td colspan="3" class="text-center text-slate-500">No services yet.</td></tr>`;
 }
 
@@ -128,8 +129,82 @@ function renderCustomers() {
 }
 
 function renderSchedules() {
-  document.getElementById("scheduleBooking").innerHTML = bookings.map((booking) => `<option value="${booking.id}">${booking.id} - ${escapeHtml(booking.customer)} - ${escapeHtml(booking.service)}</option>`).join("");
-  document.getElementById("scheduleTechnician").innerHTML = technicians.filter((tech) => tech.status === "Active").map((tech) => `<option value="${tech.id}">${escapeHtml(tech.name)} - ${escapeHtml(tech.specialty)}</option>`).join("");
+  const approvedBookings = bookings.filter((booking) => booking.status === "Approved");
+  document.getElementById("scheduleBooking").innerHTML = approvedBookings.length
+    ? approvedBookings.map((booking) => `<option value="${booking.id}">${booking.id} - ${escapeHtml(booking.customer)} - ${escapeHtml(booking.service)}</option>`).join("")
+    : `<option value="">No approved bookings awaiting assignment</option>`;
+  updateScheduleSelection();
+}
+
+function selectedScheduleBooking() {
+  return bookings.find((booking) => String(booking.id) === String($("scheduleBooking").value));
+}
+
+function slotForBooking(booking) {
+  return { date: booking?.preferredDate || booking?.scheduleDate || "", time: booking?.preferredTime || booking?.scheduleTime || "" };
+}
+
+function timeRange(time) {
+  const parseTime = (value) => {
+    const match = String(value || "").trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+    if (!match) return null;
+    let hours = Number(match[1]);
+    const minutes = Number(match[2] || 0);
+    if (hours === 12) hours = 0;
+    if (match[3].toUpperCase() === "PM") hours += 12;
+    return hours * 60 + minutes;
+  };
+  const values = String(time || "").split(/\s*(?:–|—|-)\s*/).map(parseTime);
+  return values.length === 2 && values.every(Number.isFinite) ? values : null;
+}
+
+function slotsOverlap(firstTime, secondTime) {
+  const first = timeRange(firstTime);
+  const second = timeRange(secondTime);
+  return first && second ? first[0] < second[1] && second[0] < first[1] : firstTime === secondTime;
+}
+
+function technicianConflict(technician, booking) {
+  const requested = slotForBooking(booking);
+  return bookings.some((item) => String(item.id) !== String(booking?.id)
+    && String(item.technician || "").trim().toLowerCase() === String(technician.name || "").trim().toLowerCase()
+    && slotForBooking(item).date === requested.date
+    && slotsOverlap(slotForBooking(item).time, requested.time));
+}
+
+function technicianSkillMatch(technician, booking) {
+  const service = String(booking?.service || "").toLowerCase();
+  const specialty = String(technician?.specialty || "").toLowerCase();
+  if (!specialty) return false;
+  if (service.includes("install")) return specialty.includes("install");
+  if (service.includes("repair") || service.includes("clean")) return specialty.includes("repair");
+  if (service.includes("relocat")) return specialty.includes("relocat");
+  return true;
+}
+
+function updateScheduleSelection() {
+  const booking = selectedScheduleBooking();
+  const requested = slotForBooking(booking);
+  $("scheduleRequestedDate").textContent = requested.date || "No date submitted";
+  $("scheduleRequestedTime").textContent = requested.time || "No time slot submitted";
+  $("scheduleServiceHint").textContent = booking ? `${booking.service} · Date and time are taken from the customer's request.` : "The customer's preferred date and time are read-only.";
+  const activeTechs = technicians.filter((tech) => tech.status === "Active");
+  if (!booking) {
+    $("scheduleTechnician").innerHTML = `<option value="">Select an approved booking first</option>`;
+    $("scheduleTechnician").disabled = true;
+    $("scheduleTechnicianHint").textContent = "Approve a booking before assigning a technician.";
+    return;
+  }
+  $("scheduleTechnician").disabled = false;
+  $("scheduleTechnician").innerHTML = activeTechs.map((tech) => {
+    const conflict = technicianConflict(tech, booking);
+    const skillMatch = technicianSkillMatch(tech, booking);
+    const note = conflict ? " — Unavailable (already assigned)" : (!skillMatch ? " — Skill mismatch" : "");
+    return `<option value="${tech.id}" ${conflict ? "disabled" : ""}>${escapeHtml(tech.name)} · ${escapeHtml(tech.specialty || "No fields")}${note}</option>`;
+  }).join("");
+  const available = activeTechs.find((tech) => !technicianConflict(tech, booking));
+  if (available) $("scheduleTechnician").value = String(available.id);
+  $("scheduleTechnicianHint").textContent = activeTechs.some((tech) => !technicianConflict(tech, booking)) ? "Unavailable technicians are disabled. Skill mismatches remain selectable for admin review." : "No active technician is available for this requested slot.";
 }
 
 function renderLogs() {
@@ -146,7 +221,7 @@ function renderAssignmentPreview() {
 }
 
 function renderBookingMonitor() {
-  const statuses = ["Pending", "Approved", "Assigned", "In Progress", "Completed"];
+  const statuses = ["Pending", "Approved", "Scheduled", "In Progress", "Completed"];
   const total = Math.max(bookings.length, 1);
   document.getElementById("bookingMonitor").innerHTML = statuses
     .map((status) => {
@@ -216,8 +291,8 @@ async function saveService(event) {
   event.preventDefault();
   const id = $("serviceId").value;
   const payload = { name: $("serviceName").value.trim(), type: $("serviceType").value.trim(), price: $("servicePrice").value.trim(), inclusion: $("serviceInclusion").value.trim(), exclusion: $("serviceExclusion").value.trim(), image: await fileToDataUrl($("serviceImage"), $("serviceExistingImage").value) };
-  if (!payload.name) return toast("Service name is required.");
-  if (!payload.type) return toast("Service type is required.");
+  if (!payload.name) return toast("Variant name is required.");
+  if (!payload.type) return toast("Category is required.");
   if (payload.price === "" || Number(payload.price) < 0) return toast("Price cannot be negative.");
   try {
     id ? await updateService(id, payload) : await createService(payload);
@@ -329,7 +404,15 @@ async function saveCustomer(event) {
 
 async function saveSchedule(event) {
   event.preventDefault();
-  await createSchedule({ bookingId: $("scheduleBooking").value, technicianId: $("scheduleTechnician").value, scheduleDate: $("scheduleDate").value, scheduleTime: $("scheduleTime").value });
-  toast("Technician assigned.");
-  await loadAll();
+  const booking = selectedScheduleBooking();
+  const technicianId = $("scheduleTechnician").value;
+  if (!booking || !technicianId) return toast("Select an available technician.");
+  if (technicianConflict(technicians.find((tech) => String(tech.id) === String(technicianId)), booking)) return toast("That technician is already assigned during this time slot.");
+  try {
+    await createSchedule({ bookingId: booking.id, technicianId });
+    toast("Technician assigned. Booking marked Scheduled.");
+    await loadAll();
+  } catch (error) {
+    toast(error.message);
+  }
 }

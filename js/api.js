@@ -175,6 +175,10 @@ export function updateBookingStatus(id, status) {
   });
 }
 
+export function cancelBooking(id) {
+  return requestJson(`/api/bookings/${id}/cancel`, { method: "PUT" });
+}
+
 export function updateTechnicianJobStatus(id, status) {
   return requestJson(`/api/bookings/${id}/technician-status`, {
     method: "PUT",

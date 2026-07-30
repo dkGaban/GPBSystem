@@ -4,7 +4,7 @@ module.exports = function registerAuthRoutes(app, deps) {
 const {
     getPool, sql, authLimiter, requireUser, requireAdmin, logAction, actorName, sendInternalError,
     normalizeEmail, addressFromBody, isValidPhilippineMobile, isStrongPassword, isValidEmail,
-    verifyPassword, hashPassword
+    verifyPassword, hashPassword, validateServiceArea = () => ""
   } = deps;
 
   app.post("/api/auth/register", authLimiter, async (req, res) => {
@@ -16,6 +16,8 @@ const {
     if (!isValidPhilippineMobile(phone)) return res.status(400).json({ message: "Please enter a valid Philippine mobile number." });
     if (!isStrongPassword(password)) return res.status(400).json({ message: "Password must be at least 8 characters and include uppercase, lowercase, and a number." });
     if (!address.address) return res.status(400).json({ message: "Complete the customer address fields." });
+    const serviceAreaError = validateServiceArea({ city: address.city });
+    if (serviceAreaError) return res.status(400).json({ message: serviceAreaError });
 
     try {
       const pool = await getPool();
@@ -68,7 +70,7 @@ const {
     try {
       const pool = await getPool();
       const result = await pool.request().input("Login", sql.NVarChar(150), email).query(`
-        SELECT Id AS id, Username AS username, FullName AS fullName, Email AS email, Role AS role, PasswordHash AS passwordHash, PasswordSalt AS passwordSalt
+        SELECT Id AS id, Username AS username, FullName AS fullName, Email AS email, Role AS role, MustChangePassword AS mustChangePassword, PasswordHash AS passwordHash, PasswordSalt AS passwordSalt
         FROM Users WHERE Email = @Login OR Username = @Login
       `);
       const user = result.recordset[0];

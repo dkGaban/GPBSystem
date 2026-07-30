@@ -11,6 +11,8 @@ const { addressFromBody, saveProfilePhoto } = require("./utils/address");
 const { isValidPhilippineMobile, isStrongPassword, normalizeEmail, isValidEmail, validateTechnicianPayload, validateServicePayload } = require("./utils/validation");
 const { isPastOrInvalidCalendarDate: sharedIsPastOrInvalidCalendarDate, slotToMinuteRange: sharedSlotToMinuteRange, timeSlotsOverlap: sharedTimeSlotsOverlap } = require("./utils/scheduling");
 const { actorName, createLogAction, sendInternalError: sendInternalErrorResponse } = require("./utils/audit");
+const { validateServiceArea } = require("./utils/service-area");
+const { startReminderCron } = require("./utils/reminders");
 
 const app = express();
 const isPastOrInvalidCalendarDate = sharedIsPastOrInvalidCalendarDate;
@@ -18,6 +20,7 @@ const slotToMinuteRange = sharedSlotToMinuteRange;
 const timeSlotsOverlap = sharedTimeSlotsOverlap;
 const port = process.env.PORT || 3000;
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET must be set before starting the application.");
+if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) throw new Error("EMAIL_USER and EMAIL_APP_PASSWORD must be set before starting the application. Use a Gmail App Password, not the account password.");
 if (process.env.NODE_ENV === "production" && !process.env.ADMIN_DEFAULT_PASSWORD) throw new Error("ADMIN_DEFAULT_PASSWORD must be set in production before starting the application.");
 const adminDefaultPassword = process.env.ADMIN_DEFAULT_PASSWORD || "admin123";
 if (adminDefaultPassword === "admin123") logger.warn("WARNING: The default admin credentials are still active. Set ADMIN_DEFAULT_PASSWORD to a strong unique password.");
@@ -83,7 +86,7 @@ function requireAdmin(req, res, next) {
 const sendInternalError = (res, error, context, extra = {}) => sendInternalErrorResponse(res, logger, error, context, extra);
 const logAction = createLogAction({ getPool, sql, logger });
 
-const routeDependencies = { getPool, sql, authLimiter, requireUser, requireAdmin, logAction, actorName, sendInternalError, normalizeEmail, addressFromBody, isValidPhilippineMobile, isStrongPassword, isValidEmail, verifyPassword, hashPassword };
+const routeDependencies = { getPool, sql, authLimiter, requireUser, requireAdmin, logAction, actorName, sendInternalError, normalizeEmail, addressFromBody, isValidPhilippineMobile, isStrongPassword, isValidEmail, validateServiceArea, verifyPassword, hashPassword };
 require("./routes/auth")(app, routeDependencies);
 require("./routes/customers")(app, routeDependencies);
 require("./routes/logs")(app, routeDependencies);
@@ -111,13 +114,14 @@ app.put("/api/auth/change-password", requireUser, async (req, res) => {
     const existing = await pool.request().input("Id", sql.Int, req.user.id).query("SELECT PasswordHash, PasswordSalt FROM Users WHERE Id = @Id");
     if (!existing.recordset.length || !verifyPassword(currentPassword, existing.recordset[0].PasswordSalt, existing.recordset[0].PasswordHash)) return res.status(400).json({ message: "Current password is incorrect." });
     const next = hashPassword(newPassword);
-    await pool.request().input("Id", sql.Int, req.user.id).input("PasswordHash", sql.NVarChar(255), next.hash).input("PasswordSalt", sql.NVarChar(80), next.salt).query("UPDATE Users SET PasswordHash = @PasswordHash, PasswordSalt = @PasswordSalt WHERE Id = @Id");
+    await pool.request().input("Id", sql.Int, req.user.id).input("PasswordHash", sql.NVarChar(255), next.hash).input("PasswordSalt", sql.NVarChar(80), next.salt).query("UPDATE Users SET PasswordHash = @PasswordHash, PasswordSalt = @PasswordSalt, MustChangePassword = 0 WHERE Id = @Id");
     res.json({ message: "Password changed successfully." });
   } catch (error) { sendInternalError(res, error, "Request failed"); }
 });
 
 initializeDatabase({ hashPassword, adminDefaultPassword, logger })
   .then(() => {
+    startReminderCron({ getPool, sql, logger, baseUrl: process.env.APP_BASE_URL || `http://localhost:${port}` });
     app.listen(port, () => {
       logger.info({ port }, "Server started");
       console.log(`Server running at http://localhost:${port}`);

@@ -749,6 +749,12 @@ html { scroll-behavior: smooth; }
   color: #1d4ed8;
 }
 
+.badge-scheduled {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
 .badge-active,
 .badge-completed {
   border-color: #88d7b7;
@@ -757,6 +763,19 @@ html { scroll-behavior: smooth; }
 }
 
 .badge-cancelled { border-color: #fecaca; background: #fff1f2; color: #be123c; }
+.form-note { margin: 0; color: #64748b; font-size: .9rem; line-height: 1.5; }
+.service-area-map { min-height: 320px; border: 1px solid #cbd5e1; border-radius: 12px; overflow: hidden; z-index: 0; }
+.job-reason { display: block; margin-top: 4px; color: #64748b; font-size: .8rem; line-height: 1.35; }
+.job-reason-editor { display: flex; gap: 6px; margin-top: 6px; }
+.job-reason-editor input { min-width: 180px; padding: 5px 7px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: .8rem; }
+.reminder-card { max-width: 680px; }
+.reminder-details { display: grid; gap: 10px; margin: 20px 0; }
+.reminder-details > div { display: grid; grid-template-columns: 110px 1fr; gap: 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+.reminder-details dt { color: #64748b; font-weight: 800; }
+.reminder-details dd { margin: 0; overflow-wrap: anywhere; }
+.reminder-action-block { margin: 18px 0; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+.reminder-action-block h2 { margin: 0 0 6px; font-size: 1rem; }
+.error-message { color: #b42323; }
 
 .table-footer {
   display: flex;
@@ -918,8 +937,8 @@ html { scroll-behavior: smooth; }
 
 .schedule-row {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 2.2fr auto;
-  align-items: center;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(145px, 1.2fr) minmax(220px, 2.2fr) minmax(130px, auto);
+  align-items: start;
   gap: 12px;
   padding: 13px 0;
   font-size: 13px;
@@ -928,6 +947,23 @@ html { scroll-behavior: smooth; }
 .schedule-row strong {
   color: #0f172a;
 }
+
+.schedule-grid-header {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(145px, 1.2fr) minmax(220px, 2.2fr) minmax(130px, auto);
+  gap: 12px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.schedule-row > * { min-width: 0; overflow-wrap: anywhere; }
+.schedule-grid-header > * { min-width: 0; }
+.schedule-status { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 
 .stacked-list {
   display: grid;

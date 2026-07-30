@@ -11,6 +11,7 @@
     tailwind = { config: { corePlugins: { preflight: false } } };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -30,6 +31,8 @@
             <label class="form-field"><span>Preferred Date</span><input id="bookingDate" type="date" required /><small id="bookingDateError" class="field-error hidden">Preferred date cannot be in the past. Please choose today or a future date.</small></label>
             <fieldset class="form-field"><legend>Preferred time slot</legend><div id="bookingTimeSlots" class="time-slots"></div></fieldset>
             <label class="form-field full"><span>Address</span><input id="bookingAddress" required /></label>
+            <div class="form-field full"><span>Repair location</span><div id="bookingMap" class="service-area-map" role="application" aria-label="Choose your repair location on the map"></div><small id="bookingMapMessage" class="field-error">Drop a pin within our Metro Cebu service area.</small><input id="bookingCity" type="hidden" /><input id="bookingLatitude" type="hidden" /><input id="bookingLongitude" type="hidden" /></div>
+            <p class="form-note full">If you cancel after our technician has already arrived at your location, a ₱450 fee applies for their time and travel.</p>
             <div class="booking-submit-row full"><div class="booking-total"><span>Booking total</span><strong id="bookingTotal">₱0.00</strong></div><button class="primary-button">Submit Booking Request</button></div>
           </form>
         </section>
@@ -40,7 +43,8 @@
     <footer class="site-footer"><div class="footer-grid"><div><strong class="footer-brand">GBP Electro Mechanical Services</strong><p>Dependable electro-mechanical services for your home and business.</p></div><div><h3>Quick links</h3><button data-home-section="services">Services</button><button data-home-section="products">Products</button><button data-tab="book">Book a Service</button></div><div><h3>Contact</h3><p>Phone: Add phone number</p><p>Email: Add email address</p><p>Address: Add business address</p></div><div><h3>Follow us</h3><div class="social-links"><a href="#" aria-label="Facebook">f</a><a href="#" aria-label="Instagram">◎</a><a href="#" aria-label="LinkedIn">in</a></div></div></div><div class="footer-bottom">© 2026 GBP Electro Mechanical Services. All rights reserved.</div></footer>
   </div>
   <div id="toast" class="toast hidden"></div>
-  <div id="bookingConfirmationModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="bookingConfirmationTitle"><section class="confirmation-card"><div class="confirmation-icon" aria-hidden="true">✓</div><h2 id="bookingConfirmationTitle">Request Submitted</h2><p>We've received your booking request. You'll be notified once it's approved.</p><button type="button" id="closeBookingConfirmation" class="primary-button">Done</button></section></div>
+  <div id="bookingConfirmationModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="bookingConfirmationTitle"><section class="confirmation-card"><div class="confirmation-icon" aria-hidden="true">✓</div><h2 id="bookingConfirmationTitle">Request Submitted</h2><p>We've received your booking request. You'll be notified once it's approved.</p><p class="form-note">If you cancel after our technician has already arrived at your location, a ₱450 fee applies for their time and travel.</p><button type="button" id="closeBookingConfirmation" class="primary-button">Done</button></section></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script type="module" src="js/customer-page.js"></script>
 </body>
 </html>

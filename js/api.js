@@ -179,10 +179,10 @@ export function cancelBooking(id) {
   return requestJson(`/api/bookings/${id}/cancel`, { method: "PUT" });
 }
 
-export function updateTechnicianJobStatus(id, status) {
+export function updateTechnicianJobStatus(id, status, reason = "") {
   return requestJson(`/api/bookings/${id}/technician-status`, {
     method: "PUT",
-    body: JSON.stringify({ status })
+    body: JSON.stringify({ status, reason })
   });
 }
 

@@ -1,5 +1,5 @@
-import { changePassword, getBookings, getCustomers, getMyTechnicianProfile, updateMyTechnicianProfile, updateTechnicianJobStatus } from "./api.js";
-import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, requireRole, statusBadge, toast } from "./portal-utils.js";
+import { changePassword, getBookings, getCustomers, getMyTechnicianProfile, getSession, setSession, updateMyTechnicianProfile, updateTechnicianJobStatus } from "./api.js";
+import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, requireRole, showTab, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("technician");
 let bookings = [];
@@ -16,14 +16,53 @@ async function init() {
   document.getElementById("technicianPasswordForm").addEventListener("submit", savePassword);
   document.getElementById("profileCancel").addEventListener("click", () => renderProfile(profile));
   document.getElementById("profilePhoto").addEventListener("change", previewProfilePhoto);
+  ensureProfileCityField();
   document.getElementById("profilePhone").addEventListener("input", () => validateProfilePhone());
   document.body.addEventListener("change", async (event) => {
     if (!event.target.matches("[data-job-status]")) return;
-    await updateTechnicianJobStatus(event.target.dataset.jobStatus, event.target.value);
-    toast("Job status updated.");
-    await loadAll();
+    if (event.target.value === "Unable to Complete") {
+      showUnableReasonField(event.target);
+      return;
+    }
+    await saveJobStatus(event.target, event.target.value);
+  });
+  document.body.addEventListener("click", async (event) => {
+    const saveButton = event.target.closest("[data-save-unable]");
+    if (!saveButton) return;
+    const select = saveButton.closest("td").querySelector("[data-job-status]");
+    const reason = saveButton.closest("td").querySelector("[data-unable-reason]").value.trim();
+    if (!reason) {
+      saveButton.closest("td").querySelector("[data-unable-reason]").focus();
+      toast("Please provide a reason before saving.");
+      return;
+    }
+    await saveJobStatus(select, "Unable to Complete", reason);
   });
   await loadAll();
+  if (session.user.mustChangePassword) {
+    showTab("profile");
+    toast("For security, please change your temporary password before continuing.");
+  }
+}
+
+async function saveJobStatus(select, status, reason = "") {
+  try {
+    await updateTechnicianJobStatus(select.dataset.jobStatus, status, reason);
+    toast("Job status updated.");
+    await loadAll();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function showUnableReasonField(select) {
+  const cell = select.closest("td");
+  if (cell.querySelector("[data-unable-reason]")) return;
+  const wrapper = document.createElement("div");
+  wrapper.className = "job-reason-editor";
+  wrapper.innerHTML = `<input data-unable-reason type="text" maxlength="500" placeholder="Reason required" aria-label="Reason this job cannot be completed" /><button type="button" class="tiny-button warning-button" data-save-unable>Save</button>`;
+  cell.append(wrapper);
+  wrapper.querySelector("[data-unable-reason]").focus();
 }
 
 async function loadAll() {
@@ -42,7 +81,7 @@ function render() {
   const rows = bookings.length ? bookings.map(jobRow).join("") : `<tr><td colspan="6" class="text-center text-slate-500">No assigned jobs yet.</td></tr>`;
   document.getElementById("jobsBody").innerHTML = rows;
   document.getElementById("jobsPageBody").innerHTML = rows;
-  document.getElementById("scheduleList").innerHTML = bookings.length ? bookings.map((booking) => `<div class="schedule-row"><strong>${escapeHtml(booking.customer)}</strong><span>${escapeHtml(booking.service)}</span><span>${escapeHtml([booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" ") || booking.preferredDate)}</span>${statusBadge(booking.status)}</div>`).join("") : `<p class="text-sm text-slate-500">No schedule yet.</p>`;
+  document.getElementById("scheduleList").innerHTML = bookings.length ? bookings.map((booking) => `<div class="schedule-row"><strong>${escapeHtml(booking.customer)}</strong><span>${escapeHtml(booking.service)}</span><span>${escapeHtml([booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" ") || booking.preferredDate)}</span><span>${escapeHtml(booking.address || "Address not provided")}</span><span class="schedule-status">${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}</span></div>`).join("") : `<p class="text-sm text-slate-500">No schedule yet.</p>`;
   document.getElementById("customersBody").innerHTML = customers.length ? customers.map((customer) => `<tr><td>${escapeHtml(customer.name)}</td><td>${escapeHtml(customer.phone)}</td><td>${escapeHtml(customer.email)}</td><td>${escapeHtml(customer.address)}</td></tr>`).join("") : `<tr><td colspan="4" class="text-center text-slate-500">No customers yet.</td></tr>`;
   renderProfile(profile);
 }
@@ -55,6 +94,7 @@ function renderProfile(item) {
   document.getElementById("profileName").value = item.name || "";
   document.getElementById("profilePhone").value = item.phoneNumber || "";
   document.getElementById("profileEmail").value = item.email || "";
+  document.getElementById("profileCity").value = item.city || inferServiceAreaCity(item.address);
   document.getElementById("profileAddress").value = item.address || "";
   document.getElementById("profilePhotoPreview").src = item.profilePhoto || defaultAvatar;
   document.getElementById("profilePhoto").value = "";
@@ -80,6 +120,7 @@ async function saveProfile(event) {
     name: document.getElementById("profileName").value.trim(),
     phoneNumber,
     email: document.getElementById("profileEmail").value.trim(),
+    city: document.getElementById("profileCity").value,
     address: document.getElementById("profileAddress").value.trim(),
     ...(photoInput.files?.[0] ? { profilePhoto: { name: photoInput.files[0].name, data: await fileToDataUrl(photoInput) } } : {})
   };
@@ -94,8 +135,11 @@ async function saveProfile(event) {
 
 function validateProfilePhone() { const input = document.getElementById("profilePhone"); input.value = input.value.replace(/\D/g, "").slice(0, 11); const valid = isValidPhilippineMobile(input.value); document.getElementById("profilePhoneError").classList.toggle("hidden", valid || !input.value); input.setCustomValidity(valid ? "" : "Enter a valid 11-digit PH phone number starting with 09."); return valid; }
 
+function ensureProfileCityField() { const field = document.createElement("label"); field.className = "form-field"; field.innerHTML = `<span>Service area city</span><select id="profileCity" required><option value="">Select city/municipality</option>${["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].map((city) => `<option>${city}</option>`).join("")}</select>`; document.getElementById("profileAddress").closest("label").before(field); }
+function inferServiceAreaCity(address) { const value = String(address || "").toLowerCase(); return ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].find((city) => value.includes(city.toLowerCase())) || ""; }
+
 function jobRow(booking) {
-  return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml(booking.address || [booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" "))}</td><td>${statusBadge(booking.status)}</td><td><select data-job-status="${booking.id}"><option ${booking.status === "Scheduled" ? "selected" : ""}>Scheduled</option><option ${booking.status === "Approved" ? "selected" : ""}>Approved</option><option ${booking.status === "In Progress" ? "selected" : ""}>In Progress</option><option ${booking.status === "Completed" ? "selected" : ""}>Completed</option><option ${booking.status === "Unable to Complete" ? "selected" : ""}>Unable to Complete</option></select></td></tr>`;
+  return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml(booking.address || [booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" "))}</td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}</td><td><select data-job-status="${booking.id}"><option ${booking.status === "Scheduled" ? "selected" : ""}>Scheduled</option><option ${booking.status === "In Progress" ? "selected" : ""}>In Progress</option><option ${booking.status === "Completed" ? "selected" : ""}>Completed</option><option ${booking.status === "Unable to Complete" ? "selected" : ""}>Unable to Complete</option></select></td></tr>`;
 }
 
-async function savePassword(event) { event.preventDefault(); const message = document.getElementById("technicianPasswordMessage"); const next = document.getElementById("technicianNewPassword").value; if (next !== document.getElementById("technicianConfirmPassword").value) { message.textContent = "New passwords do not match."; return; } try { const result = await changePassword({ currentPassword: document.getElementById("technicianCurrentPassword").value, newPassword: next, confirmPassword: document.getElementById("technicianConfirmPassword").value }); message.textContent = result.message; event.target.reset(); } catch (error) { message.textContent = error.message; } }
+async function savePassword(event) { event.preventDefault(); const message = document.getElementById("technicianPasswordMessage"); const next = document.getElementById("technicianNewPassword").value; if (next !== document.getElementById("technicianConfirmPassword").value) { message.textContent = "New passwords do not match."; return; } try { const result = await changePassword({ currentPassword: document.getElementById("technicianCurrentPassword").value, newPassword: next, confirmPassword: document.getElementById("technicianConfirmPassword").value }); const current = getSession(); if (current?.user) { current.user.mustChangePassword = false; setSession(current); } message.textContent = result.message; event.target.reset(); } catch (error) { message.textContent = error.message; } }

@@ -47,6 +47,7 @@ async function init() {
   document.getElementById("customerSearch").addEventListener("input", renderCustomers);
   document.getElementById("scheduleForm").addEventListener("submit", saveSchedule);
   document.getElementById("scheduleBooking").addEventListener("change", updateScheduleSelection);
+  ensureAdminCityFields();
   await loadAll();
 }
 
@@ -96,7 +97,7 @@ function renderStats() {
 
 function bookingRows(items) {
   return items.length
-    ? items.map((booking) => `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}</td><td><button class="tiny-button success-button" data-approve="${booking.id}">Approve</button><button class="tiny-button warning-button" data-reject="${booking.id}">Reject</button><button class="tiny-button danger-button" data-delete-booking="${booking.id}">Delete</button></td></tr>`).join("")
+    ? items.map((booking) => `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}</td><td><button class="tiny-button success-button" data-approve="${booking.id}">Approve</button><button class="tiny-button warning-button" data-reject="${booking.id}">Reject</button><button class="tiny-button danger-button" data-delete-booking="${booking.id}">Delete</button></td></tr>`).join("")
     : `<tr><td colspan="7" class="text-center text-slate-500">No bookings yet.</td></tr>`;
 }
 
@@ -333,6 +334,7 @@ function fillTechnician(id) {
   $("technicianStatus").value = item.status || "Active";
   $("technicianPhone").value = item.phoneNumber || "";
   $("technicianEmail").value = item.email || "";
+  $("technicianCity").value = item.city || inferServiceAreaCity(item.address);
   $("technicianAddress").value = item.address || "";
   $("technicianPassword").value = "";
   openModal("technicianModal");
@@ -359,6 +361,7 @@ async function saveTechnician(event) {
     status: $("technicianStatus").value,
     phoneNumber,
     email: $("technicianEmail").value.trim(),
+    city: $("technicianCity").value,
     address: $("technicianAddress").value.trim(),
     password: $("technicianPassword").value,
     ...(photo ? { profilePhoto: { name: photo.name, data: await fileToDataUrl(photoInput) } } : {})
@@ -379,6 +382,7 @@ function fillCustomer(id) {
   $("customerName").value = item.name || "";
   $("customerPhone").value = item.phone || "";
   $("customerEmail").value = item.email || "";
+  $("customerCity").value = item.city || "";
   $("customerAddress").value = item.address || "";
   openModal("customerModal");
 }
@@ -388,7 +392,7 @@ async function saveCustomer(event) {
   const id = $("customerId").value;
   const phoneInput = $("customerPhone");
   phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, 11);
-  const payload = { name: $("customerName").value.trim(), phone: phoneInput.value, email: $("customerEmail").value.trim(), address: $("customerAddress").value.trim() };
+  const payload = { name: $("customerName").value.trim(), phone: phoneInput.value, email: $("customerEmail").value.trim(), address: $("customerAddress").value.trim(), city: $("customerCity").value };
   if (!isValidPhilippineMobile(payload.phone)) {
     $("customerPhoneError").classList.remove("hidden");
     return;
@@ -416,3 +420,16 @@ async function saveSchedule(event) {
     toast(error.message);
   }
 }
+
+function ensureAdminCityFields() {
+  const cities = ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"];
+  [["technicianAddress", "technicianCity"], ["customerAddress", "customerCity"]].forEach(([addressId, cityId]) => {
+    if ($(cityId)) return;
+    const field = document.createElement("label");
+    field.className = "form-field";
+    field.innerHTML = `<span>Service area city</span><select id="${cityId}" required><option value="">Select city/municipality</option>${cities.map((city) => `<option>${city}</option>`).join("")}</select>`;
+    $(addressId).closest("label").after(field);
+  });
+}
+
+function inferServiceAreaCity(address) { const value = String(address || "").toLowerCase(); return ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].find((city) => value.includes(city.toLowerCase())) || ""; }

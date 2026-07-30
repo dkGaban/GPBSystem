@@ -1,7 +1,7 @@
 const { addressFromBody } = require("../utils/address");
 const { isValidPhilippineMobile, normalizeEmail } = require("../utils/validation");
 
-module.exports = function registerCustomerRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError }) {
+module.exports = function registerCustomerRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError, validateServiceArea }) {
   app.get("/api/customers", requireUser, async (req, res) => {
     try {
       const pool = await getPool();
@@ -20,28 +20,32 @@ module.exports = function registerCustomerRoutes(app, { getPool, sql, requireUse
   });
 
   app.post("/api/customers", requireUser, async (req, res) => {
-    const { name, phone } = req.body; const email = normalizeEmail(req.body.email); const address = addressFromBody(req.body);
+    const { name, phone, city, latitude, longitude } = req.body; const email = normalizeEmail(req.body.email); const address = addressFromBody(req.body);
     if (!name || !phone || !email || !address.address) return res.status(400).json({ message: "Missing required customer fields." });
     if (!isValidPhilippineMobile(phone)) return res.status(400).json({ message: "Contact number must contain exactly 11 digits." });
+    const serviceAreaError = validateServiceArea({ city, latitude, longitude });
+    if (serviceAreaError) return res.status(400).json({ message: serviceAreaError });
     try {
       const pool = await getPool();
-      const result = await pool.request().input("Name", sql.NVarChar(100), name).input("Phone", sql.NVarChar(50), phone).input("Email", sql.NVarChar(100), email).input("Address", sql.NVarChar(255), address.address).query(`
-        INSERT INTO Customers (Name, Phone, Email, Address)
+      const result = await pool.request().input("Name", sql.NVarChar(100), name).input("Phone", sql.NVarChar(50), phone).input("Email", sql.NVarChar(100), email).input("Address", sql.NVarChar(255), address.address).input("Latitude", sql.Decimal(9, 6), latitude === undefined ? null : Number(latitude)).input("Longitude", sql.Decimal(9, 6), longitude === undefined ? null : Number(longitude)).query(`
+        INSERT INTO Customers (Name, Phone, Email, Address, Latitude, Longitude)
         OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Phone AS phone, INSERTED.Email AS email, INSERTED.Address AS address
-        VALUES (@Name, @Phone, @Email, @Address)
+        VALUES (@Name, @Phone, @Email, @Address, @Latitude, @Longitude)
       `);
       await logAction(`Created customer ${name}`, actorName(req), "Customers", result.recordset[0].id); res.status(201).json(result.recordset[0]);
     } catch (error) { sendInternalError(res, error, "Request failed"); }
   });
 
   app.put("/api/customers/:id", requireUser, async (req, res) => {
-    const { name, phone } = req.body; const email = normalizeEmail(req.body.email); const address = addressFromBody(req.body);
+    const { name, phone, city, latitude, longitude } = req.body; const email = normalizeEmail(req.body.email); const address = addressFromBody(req.body);
     if (!name || !phone || !email || !address.address) return res.status(400).json({ message: "Missing required customer fields." });
     if (!isValidPhilippineMobile(phone)) return res.status(400).json({ message: "Contact number must contain exactly 11 digits." });
+    const serviceAreaError = validateServiceArea({ city, latitude, longitude });
+    if (serviceAreaError) return res.status(400).json({ message: serviceAreaError });
     try {
       const pool = await getPool();
-      const result = await pool.request().input("Id", sql.Int, Number(req.params.id)).input("Name", sql.NVarChar(100), name).input("Phone", sql.NVarChar(50), phone).input("Email", sql.NVarChar(100), email).input("Address", sql.NVarChar(255), address.address).query(`
-        UPDATE Customers SET Name = @Name, Phone = @Phone, Email = @Email, Address = @Address
+      const result = await pool.request().input("Id", sql.Int, Number(req.params.id)).input("Name", sql.NVarChar(100), name).input("Phone", sql.NVarChar(50), phone).input("Email", sql.NVarChar(100), email).input("Address", sql.NVarChar(255), address.address).input("Latitude", sql.Decimal(9, 6), latitude === undefined ? null : Number(latitude)).input("Longitude", sql.Decimal(9, 6), longitude === undefined ? null : Number(longitude)).query(`
+        UPDATE Customers SET Name = @Name, Phone = @Phone, Email = @Email, Address = @Address, Latitude = @Latitude, Longitude = @Longitude
         OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Phone AS phone, INSERTED.Email AS email, INSERTED.Address AS address WHERE Id = @Id
       `);
       if (!result.recordset.length) return res.status(404).json({ message: "Customer not found." });

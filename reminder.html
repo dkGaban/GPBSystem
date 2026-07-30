@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage your booking - GBP Electro Mechanical Services</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="auth-shell">
+    <section class="auth-card reminder-card">
+      <h1>Manage your booking</h1>
+      <p id="reminderMessage" class="form-message" role="status">Loading your booking details…</p>
+      <dl id="reminderDetails" class="reminder-details hidden"></dl>
+      <div id="reminderActions" class="hidden">
+        <section class="reminder-action-block">
+          <h2>Cancel this booking</h2>
+          <p>If you cancel now, before the appointment day, there is no fee. Your time slot will be released for other customers.</p>
+          <button id="cancelBookingButton" class="danger-button">Cancel this booking</button>
+        </section>
+        <section class="reminder-action-block">
+          <h2>Reschedule this booking</h2>
+          <form id="rescheduleForm" class="form-grid">
+            <label class="form-field"><span>New date</span><input id="rescheduleDate" type="date" required /></label>
+            <label class="form-field"><span>New time</span><select id="rescheduleTime" required><option value="">Choose a time</option><option>6:00 AM – 8:00 AM</option><option>8:00 AM – 11:00 AM</option><option>1:00 PM – 3:00 PM</option><option>3:00 PM – 5:00 PM</option></select></label>
+            <button class="primary-button full" type="submit">Reschedule this booking</button>
+          </form>
+        </section>
+        <p class="form-note">If you decide to cancel after our technician has already arrived on the day of service, a ₱450 fee applies for their time and travel.</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="js/reminder-page.js"></script>
+</body>
+</html>

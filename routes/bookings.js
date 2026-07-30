@@ -1,9 +1,10 @@
 const { isValidPhilippineMobile } = require("../utils/validation");
 const { isPastOrInvalidCalendarDate } = require("../utils/scheduling");
+const { appointmentExpiry } = require("../utils/reminders");
 
 module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError, validateServiceArea }) {
   async function findReminderBooking(token) {
-    return (await (await getPool()).request().input("Token", sql.NVarChar(128), String(token || "")).query("SELECT TOP 1 Id AS id, CustomerName AS customer, Email AS email, ServiceName AS service, Address AS address, PreferredDate AS preferredDate, PreferredTime AS preferredTime, Status AS status, RescheduleCount AS rescheduleCount, LastActionAt AS lastActionAt FROM Bookings WHERE ReminderToken = @Token AND ReminderTokenExpiresAt > GETDATE()")).recordset[0];
+    return (await (await getPool()).request().input("Token", sql.NVarChar(128), String(token || "")).query("SELECT TOP 1 Id AS id, CustomerName AS customer, Email AS email, ServiceName AS service, Address AS address, PreferredDate AS preferredDate, PreferredTime AS preferredTime, Status AS status, RescheduleCount AS rescheduleCount, LastActionAt AS lastActionAt, CASE WHEN LastActionAt IS NOT NULL AND DATEDIFF(second, LastActionAt, GETDATE()) < 300 THEN 1 ELSE 0 END AS cooldownActive FROM Bookings WHERE ReminderToken = @Token AND ReminderTokenExpiresAt > GETDATE()")).recordset[0];
   }
 
   function cooldownActive(lastActionAt) {
@@ -66,7 +67,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
       const pool = await getPool();
       const booking = await findReminderBooking(req.params.token);
       if (!booking) return res.status(404).json({ message: "This reminder link is invalid or has expired." });
-      if (cooldownActive(booking.lastActionAt)) return res.status(429).json({ message: "Please wait five minutes between booking changes." });
+      if (booking.cooldownActive === 1 || (booking.cooldownActive == null && cooldownActive(booking.lastActionAt))) return res.status(429).json({ message: "Please wait five minutes between booking changes." });
       if (["Completed", "Cancelled"].includes(booking.status)) return res.status(400).json({ message: "This booking can no longer be cancelled." });
       const feeApplies = booking.status === "In Progress";
       await pool.request().input("Id", sql.Int, booking.id).input("CancellationFeeApplies", sql.Bit, feeApplies ? 1 : 0).query("DELETE FROM Schedules WHERE BookingId = @Id; UPDATE Bookings SET Status = 'Cancelled', CancellationFeeApplies = @CancellationFeeApplies, LastActionAt = GETDATE(), ReminderToken = NULL WHERE Id = @Id;");
@@ -83,10 +84,10 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
       const pool = await getPool();
       const booking = await findReminderBooking(req.params.token);
       if (!booking) return res.status(404).json({ message: "This reminder link is invalid or has expired." });
-      if (cooldownActive(booking.lastActionAt)) return res.status(429).json({ message: "Please wait five minutes between booking changes." });
+      if (booking.cooldownActive === 1 || (booking.cooldownActive == null && cooldownActive(booking.lastActionAt))) return res.status(429).json({ message: "Please wait five minutes between booking changes." });
       if (Number(booking.rescheduleCount || 0) >= 2) return res.status(400).json({ message: "This booking has already been rescheduled the maximum number of times. Please cancel and submit a new booking if you need a different date." });
       if (["Completed", "Cancelled"].includes(booking.status)) return res.status(400).json({ message: "This booking can no longer be rescheduled." });
-      await pool.request().input("Id", sql.Int, booking.id).input("PreferredDate", sql.Date, preferredDate).input("PreferredTime", sql.NVarChar(50), preferredTime).query("DELETE FROM Schedules WHERE BookingId = @Id; UPDATE Bookings SET PreferredDate = @PreferredDate, PreferredTime = @PreferredTime, Status = 'Pending', RescheduleCount = RescheduleCount + 1, LastActionAt = GETDATE(), ReminderToken = NULL, ReminderTokenExpiresAt = NULL, ReminderSentAt = NULL WHERE Id = @Id;");
+      await pool.request().input("Id", sql.Int, booking.id).input("PreferredDate", sql.Date, preferredDate).input("PreferredTime", sql.NVarChar(50), preferredTime).input("ReminderTokenExpiresAt", sql.DateTime, appointmentExpiry(preferredDate, preferredTime)).query("DELETE FROM Schedules WHERE BookingId = @Id; UPDATE Bookings SET PreferredDate = @PreferredDate, PreferredTime = @PreferredTime, Status = 'Pending', RescheduleCount = RescheduleCount + 1, LastActionAt = GETDATE(), ReminderTokenExpiresAt = @ReminderTokenExpiresAt, ReminderSentAt = NULL WHERE Id = @Id;");
       await logAction(`Rescheduled booking ${booking.id} through reminder link to ${preferredDate} ${preferredTime}`, "Reminder link", "Bookings", booking.id);
       res.json({ id: booking.id, status: "Pending", preferredDate, preferredTime });
     } catch (error) { sendInternalError(res, error, "Reminder reschedule failed"); }

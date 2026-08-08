@@ -95,6 +95,7 @@ require("./routes/technicians")(app, routeDependencies);
 require("./routes/bookings")(app, routeDependencies);
 require("./routes/products")(app, routeDependencies);
 require("./routes/services")(app, routeDependencies);
+require("./routes/brands")(app, routeDependencies);
 
 app.get("/api/health", async (req, res) => {
   try {

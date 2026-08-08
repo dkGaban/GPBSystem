@@ -45,6 +45,25 @@ async function getPriceTiers(pool, sql, serviceId) {
   return result.recordset;
 }
 
+async function matchServicePrice(pool, sql, serviceId, hPower, unitType = "") {
+  const targetHorsePower = Number(hPower);
+  const serviceResult = await pool.request().input("ServiceID", sql.Int, serviceId).query("SELECT TOP 1 Price FROM tblService WHERE ServiceID = @ServiceID");
+  if (!serviceResult.recordset.length) return null;
+  const tiers = await getPriceTiers(pool, sql, serviceId);
+  if (!tiers.length) return { amount: Number(serviceResult.recordset[0].Price), matchedTierId: null, usedBasePrice: true };
+  const normalizedUnitType = String(unitType || "").trim().toLowerCase();
+  const exact = normalizedUnitType
+    ? tiers.find((tier) => Number(tier.hPower) === targetHorsePower && String(tier.unitType || "").trim().toLowerCase() === normalizedUnitType)
+    : null;
+  const closest = tiers
+    .filter((tier) => Number.isFinite(Number(tier.hPower)))
+    .sort((first, second) => Math.abs(Number(first.hPower) - targetHorsePower) - Math.abs(Number(second.hPower) - targetHorsePower))[0];
+  const match = exact || closest;
+  return match
+    ? { amount: Number(match.amount), matchedTierId: match.id, usedBasePrice: false }
+    : { amount: Number(serviceResult.recordset[0].Price), matchedTierId: null, usedBasePrice: true };
+}
+
 module.exports = function registerServiceRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError }) {
   app.get("/api/services", async (req, res) => {
     try {
@@ -58,6 +77,21 @@ module.exports = function registerServiceRoutes(app, { getPool, sql, requireUser
       `);
       res.json(serviceWithTiers(result.recordset));
     } catch (error) { sendInternalError(res, error, "Request failed"); }
+  });
+
+  app.get("/api/services/:id/price-match", async (req, res) => {
+    const serviceId = Number(req.params.id);
+    const hPower = Number(req.query.hPower);
+    const unitType = String(req.query.unitType || "").trim();
+    if (!Number.isInteger(serviceId) || serviceId <= 0) return res.status(404).json({ message: "Service not found." });
+    if (req.query.hPower === undefined || req.query.hPower === "" || !Number.isFinite(hPower)) return res.status(400).json({ message: "A valid hPower number is required." });
+    try {
+      const pool = await getPool();
+      const match = await matchServicePrice(pool, sql, serviceId, hPower, unitType);
+      if (!match) return res.status(404).json({ message: "Service not found." });
+      const tier = match.matchedTierId ? (await pool.request().input("SPriceID", sql.Int, match.matchedTierId).query("SELECT SPriceID AS id, HPower AS hPower, UnitType AS unitType FROM tblServicePrice WHERE SPriceID = @SPriceID")).recordset[0] : null;
+      res.json({ amount: match.amount, matchedTier: tier || null, usedBasePrice: match.usedBasePrice });
+    } catch (error) { sendInternalError(res, error, "Price match failed"); }
   });
 
   app.post("/api/services", requireUser, requireAdmin, async (req, res) => { const { name, type, price, inclusion = "", exclusion = "", image = "" } = req.body; const validationMessage = validateServicePayload({ name, type, price }); if (validationMessage) return res.status(400).json({ message: validationMessage }); try { const pool = await getPool(); const existing = await pool.request().input("Name", sql.NVarChar(100), name.trim()).input("Type", sql.NVarChar(100), type.trim()).query("SELECT TOP 1 ServiceID FROM tblService WHERE LOWER(Name) = LOWER(@Name) AND LOWER(Type) = LOWER(@Type)"); if (existing.recordset.length) return res.status(409).json({ message: "This category already has a variant with that name." }); const result = await pool.request().input("Name", sql.NVarChar(100), name.trim()).input("Type", sql.NVarChar(100), type.trim()).input("Price", sql.Decimal(10, 2), Number(price)).input("Inclusion", sql.NVarChar(sql.MAX), String(inclusion || "").trim()).input("Exclusion", sql.NVarChar(sql.MAX), String(exclusion || "").trim()).input("Image", sql.NVarChar(sql.MAX), String(image || "")).query("INSERT INTO tblService (Name, Type, Price, Inclusion, Exclusion, Image) OUTPUT INSERTED.ServiceID AS id, INSERTED.Name AS name, INSERTED.Type AS type, INSERTED.Price AS price, INSERTED.Inclusion AS inclusion, INSERTED.Exclusion AS exclusion, INSERTED.Image AS image VALUES (@Name, @Type, @Price, @Inclusion, @Exclusion, @Image)"); await logAction(`Created service ${name}`, actorName(req), "tblService", result.recordset[0].id); res.status(201).json({ ...result.recordset[0], priceTiers: [] }); } catch (error) { sendInternalError(res, error, "Request failed"); } });
@@ -111,3 +145,5 @@ module.exports = function registerServiceRoutes(app, { getPool, sql, requireUser
     } catch (error) { sendInternalError(res, error, "Price tier deletion failed"); }
   });
 };
+
+module.exports.matchServicePrice = matchServicePrice;

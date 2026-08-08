@@ -1,6 +1,7 @@
 const { isValidPhilippineMobile } = require("../utils/validation");
 const { isPastOrInvalidCalendarDate } = require("../utils/scheduling");
 const { appointmentExpiry } = require("../utils/reminders");
+const { matchServicePrice } = require("./services");
 
 module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError, validateServiceArea }) {
   async function findReminderBooking(token) {
@@ -37,21 +38,75 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
         const result = Number.isInteger(id) && id > 0
           ? await pool.request().input("Id", sql.Int, id).query("SELECT TOP 1 ServiceID AS Id, Name, Type, Price FROM tblService WHERE ServiceID = @Id")
           : await pool.request().input("Name", sql.NVarChar(100), String(selected?.name || selected).trim()).query("SELECT TOP 1 ServiceID AS Id, Name, Type, Price FROM tblService WHERE Name = @Name");
-        return result.recordset[0];
+        const service = result.recordset[0];
+        if (!service) return null;
+        if (selected && typeof selected === "object" && selected.units !== undefined && !Array.isArray(selected.units)) {
+          const error = new Error("Service units must be an array."); error.statusCode = 400; throw error;
+        }
+        const units = Array.isArray(selected?.units) ? selected.units.filter(Boolean) : [];
+        const preparedUnits = [];
+        for (const unit of units) {
+          const airconType = String(unit.airconType || "").trim();
+          const technology = String(unit.technology || "").trim();
+          const horsePower = Number(unit.horsePower);
+          const brandId = Number(unit.brandId);
+          const quantity = Number(unit.quantity ?? 1);
+          if (!airconType || !technology) { const error = new Error("Aircon type and technology are required for each unit."); error.statusCode = 400; throw error; }
+          if (!Number.isFinite(horsePower) || horsePower <= 0) { const error = new Error("Horsepower must be a positive number for each unit."); error.statusCode = 400; throw error; }
+          if (!Number.isInteger(brandId) || brandId <= 0) { const error = new Error("A valid brand is required for each unit."); error.statusCode = 400; throw error; }
+          if (!Number.isInteger(quantity) || quantity <= 0) { const error = new Error("Unit quantity must be a positive whole number."); error.statusCode = 400; throw error; }
+          const match = await matchServicePrice(pool, sql, service.Id, horsePower, technology);
+          if (!match) { const error = new Error("Unable to match a price for one of the selected units."); error.statusCode = 400; throw error; }
+          preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount: Number(match.amount) });
+        }
+        return { ...service, units: preparedUnits, total: preparedUnits.length ? preparedUnits.reduce((sum, unit) => sum + unit.amount * unit.quantity, 0) : Number(service.Price || 0) };
       }));
       if (pricedServices.some((item) => !item)) return res.status(400).json({ message: "One or more selected services are no longer available." });
       const serviceLabel = pricedServices.map((item) => `${item.Type || "Uncategorized"} - ${item.Name}`).join(", ");
-      const serviceTotal = pricedServices.reduce((sum, item) => sum + Number(item.Price || 0), 0);
-      const result = await pool.request()
+      const serviceTotal = pricedServices.reduce((sum, item) => sum + item.total, 0);
+      const transaction = new sql.Transaction(pool);
+      await transaction.begin();
+      try {
+        let customerId = null;
+        if (pricedServices.some((item) => item.units.length)) {
+          const customerResult = await transaction.request().input("Email", sql.NVarChar(150), String(email || req.user.email || "").trim()).query("SELECT TOP 1 CustomerID FROM tblCustomer WHERE LOWER(Email) = LOWER(@Email)");
+          customerId = customerResult.recordset[0]?.CustomerID;
+          if (!customerId) { const error = new Error("Customer profile could not be found for the submitted unit details."); error.statusCode = 400; throw error; }
+        }
+        const result = await transaction.request()
         .input("CustomerName", sql.NVarChar(100), customer).input("Phone", sql.NVarChar(50), phone || "")
         .input("Email", sql.NVarChar(150), email || "").input("ServiceName", sql.NVarChar(500), serviceLabel)
         .input("TotalAmount", sql.Decimal(10, 2), serviceTotal).input("Address", sql.NVarChar(255), address)
         .input("RequestDate", sql.Date, preferredDate).input("RequestTime", sql.NVarChar(50), preferredTime || "")
         .input("Latitude", sql.Decimal(9, 6), Number(latitude)).input("Longitude", sql.Decimal(9, 6), Number(longitude))
         .query("INSERT INTO tblServiceRequest (CustomerName, Phone, Email, ServiceName, TotalAmount, Address, RequestDate, RequestTime, Latitude, Longitude, Status) OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.Phone AS phone, INSERTED.Email AS email, INSERTED.ServiceName AS service, INSERTED.TotalAmount AS totalAmount, INSERTED.Address AS address, CONVERT(varchar(10), INSERTED.RequestDate, 23) AS preferredDate, INSERTED.RequestTime AS preferredTime, INSERTED.Status AS status VALUES (@CustomerName, @Phone, @Email, @ServiceName, @TotalAmount, @Address, @RequestDate, @RequestTime, @Latitude, @Longitude, 'Pending')");
-      await logAction(`Created booking for ${customer}`, actorName(req), "tblServiceRequest", result.recordset[0].id);
-      res.status(201).json(result.recordset[0]);
-    } catch (error) { sendInternalError(res, error, "Request failed"); }
+        const requestId = result.recordset[0].id;
+        for (const serviceItem of pricedServices) {
+          for (const unit of serviceItem.units) {
+            const customerUnit = await transaction.request()
+              .input("CustomerID", sql.Int, customerId).input("BrandID", sql.Int, unit.brandId)
+              .input("AirconType", sql.NVarChar(50), unit.airconType).input("Technology", sql.NVarChar(50), unit.technology)
+              .input("HorsePower", sql.Decimal(4, 2), unit.horsePower)
+              .query("INSERT INTO tblCustomerUnit (CustomerID, BrandID, AirconType, Technology, HorsePower) OUTPUT INSERTED.CUnitID AS id VALUES (@CustomerID, @BrandID, @AirconType, @Technology, @HorsePower)");
+            const cUnitId = customerUnit.recordset[0].id;
+            const description = `${unit.airconType} ${unit.technology} ${unit.horsePower}HP`;
+            await transaction.request().input("RequestID", sql.Int, requestId).input("CUnitID", sql.Int, cUnitId)
+              .input("Quantity", sql.Int, unit.quantity).input("Description", sql.NVarChar(500), description)
+              .input("UPrice", sql.Decimal(10, 2), unit.amount).input("SubTotal", sql.Decimal(10, 2), unit.amount * unit.quantity)
+              .query("INSERT INTO tblServiceDetails (RequestID, CUnitID, Quantity, Description, UPrice, SubTotal) VALUES (@RequestID, @CUnitID, @Quantity, @Description, @UPrice, @SubTotal)");
+          }
+        }
+        await transaction.commit();
+        await logAction(`Created booking for ${customer}`, actorName(req), "tblServiceRequest", requestId);
+        res.status(201).json(result.recordset[0]);
+      } catch (error) {
+        try { await transaction.rollback(); } catch (_) { /* transaction may already be closed */ }
+        throw error;
+      }
+    } catch (error) {
+      if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+      sendInternalError(res, error, "Request failed");
+    }
   });
 
   app.get("/api/bookings/reminder/:token", async (req, res) => {

@@ -84,6 +84,16 @@ export function getServices() {
   return requestJson("/api/services");
 }
 
+export function getBrands() {
+  return requestJson("/api/brands");
+}
+
+export function matchServicePrice(serviceId, hPower, unitType) {
+  const params = new URLSearchParams({ hPower: String(hPower) });
+  if (unitType) params.set("unitType", unitType);
+  return requestJson(`/api/services/${serviceId}/price-match?${params.toString()}`);
+}
+
 export function createService(service) {
   return requestJson("/api/services", {
     method: "POST",
@@ -180,9 +190,17 @@ export function getBookings() {
 }
 
 export function createBooking(booking) {
+  const payload = { ...booking, services: (booking.services || []).map((service) => ({
+    id: service.id,
+    name: service.name,
+    price: service.price,
+    ...(Array.isArray(service.units) && service.units.length ? {
+      units: service.units.map((unit) => ({ airconType: unit.airconType, brandId: Number(unit.brandId), technology: unit.technology, horsePower: Number(unit.horsePower), quantity: Number(unit.quantity) }))
+    } : {})
+  })) };
   return requestJson("/api/bookings", {
     method: "POST",
-    body: JSON.stringify(booking)
+    body: JSON.stringify(payload)
   });
 }
 

@@ -292,10 +292,21 @@ async function locateBookingAddress(respectRateLimit = true) {
   lastMapLookup = Date.now();
   setMapMessage("Checking this address...", false);
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&addressdetails=1&limit=1&countrycodes=ph`, { headers: { "Accept-Language": "en", "User-Agent": "GBP-Electro-Mechanical-Services/1.0" } });
-    if (!response.ok) throw new Error("Location lookup failed.");
-    const results = await response.json();
-    const result = results[0];
+    const segments = address.split(",").map((segment) => segment.trim()).filter(Boolean);
+    const lastAttempt = Math.max(0, segments.length - 2);
+    let result;
+    let droppedSegments = 0;
+    for (let attempt = 0; attempt <= lastAttempt; attempt += 1) {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, Math.max(0, 1000 - (Date.now() - lastMapLookup))));
+        lastMapLookup = Date.now();
+      }
+      const query = segments.slice(attempt).join(", ") || address;
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=1&countrycodes=ph`, { headers: { "Accept-Language": "en", "User-Agent": "GBP-Electro-Mechanical-Services/1.0" } });
+      if (!response.ok) throw new Error("Location lookup failed.");
+      const results = await response.json();
+      if (results[0]) { result = results[0]; droppedSegments = attempt; break; }
+    }
     if (!result) throw new Error("No location found.");
     const latlng = { lat: Number(result.lat), lng: Number(result.lon) };
     if (!Number.isFinite(latlng.lat) || !Number.isFinite(latlng.lng)) throw new Error("Invalid location returned.");
@@ -306,7 +317,10 @@ async function locateBookingAddress(respectRateLimit = true) {
     $("bookingLatitude").value = latlng.lat.toFixed(6);
     $("bookingLongitude").value = latlng.lng.toFixed(6);
     updateBookingReview();
-    applyGeocodedLocation(result);
+    if (applyGeocodedLocation(result) && droppedSegments > 0) {
+      const rawCity = result.address?.city || result.address?.municipality || result.address?.town || result.address?.village || "the selected area";
+      setMapMessage(`We found an approximate location near ${rawCity}. Please drag the pin to your exact address.`, false);
+    }
   } catch (error) {
     $("bookingLatitude").value = "";
     $("bookingLongitude").value = "";

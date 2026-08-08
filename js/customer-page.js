@@ -12,6 +12,7 @@ const serviceAreaCities = new Set(["san fernando", "naga", "minglanilla", "talis
 let bookingMap;
 let bookingMarker;
 let lastMapLookup = 0;
+let bookingStep = 1;
 
 if (session) init();
 
@@ -21,9 +22,18 @@ async function init() {
   updateWebsiteNav(initialTab, initialHomeSection());
   document.getElementById("logoutButton").addEventListener("click", logout);
   document.getElementById("bookingForm").addEventListener("submit", saveBooking);
+  $("bookingNextButton").addEventListener("click", () => setBookingStep(bookingStep + 1));
+  $("bookingBackButton").addEventListener("click", () => setBookingStep(bookingStep - 1));
+  document.querySelectorAll("[data-booking-step]").forEach((button) => button.addEventListener("click", () => {
+    const target = Number(button.dataset.bookingStep);
+    if (target <= bookingStep) setBookingStep(target);
+  }));
   initBookingMap();
   $("bookingDate").min = todayDate();
-  $("bookingDate").addEventListener("input", validateBookingDate);
+  $("bookingDate").addEventListener("input", () => { validateBookingDate(); updateBookingReview(); });
+  $("bookingDate").addEventListener("change", updateBookingReview);
+  $("bookingTimeSlots").addEventListener("change", updateBookingReview);
+  $("bookingAddress").addEventListener("input", updateBookingReview);
   $("closeBookingConfirmation").addEventListener("click", closeBookingConfirmation);
   document.getElementById("profileForm").addEventListener("submit", saveProfile);
   ensureProfileCityField();
@@ -47,7 +57,7 @@ async function init() {
     const detailButton = event.target.closest("[data-service-details]");
     if (detailButton) {
       event.preventDefault();
-      const option = detailButton.closest(".booking-variant");
+      const option = detailButton.closest(".booking-service-card");
       const expanded = option.classList.toggle("is-expanded");
       detailButton.setAttribute("aria-expanded", String(expanded));
       detailButton.textContent = expanded ? "Hide details" : "View details";
@@ -67,6 +77,7 @@ async function init() {
   $("profilePhone").addEventListener("input", () => validatePhoneField("profilePhone", "profilePhoneError"));
   await loadAll();
   fillCustomerDefaults();
+  setBookingStep(1);
 }
 
 async function loadAll() {
@@ -84,6 +95,7 @@ function render() {
   $("bookingTimeSlots").innerHTML = timeSlots.map((slot, index) => `<label class="time-slot"><input type="radio" name="bookingTime" value="${slot}" ${index === 0 ? "required" : ""}/><span>${slot}</span></label>`).join("");
   renderProducts(products, { customer: true });
   if (profile) { $("profileName").value = profile.name || ""; $("profileEmail").value = profile.email || ""; $("profilePhone").value = profile.phone || ""; $("profileAddress").value = profile.address || ""; $("profileCity").value = profile.city || ""; }
+  updateBookingTotal();
 }
 
 function fillCustomerDefaults() {
@@ -92,16 +104,7 @@ function fillCustomerDefaults() {
 
 async function saveBooking(event) {
   event.preventDefault();
-  if (!validateBookingDate()) return;
-  if (!$("bookingCity").value || !$("bookingLatitude").value || !$("bookingLongitude").value) {
-    setMapMessage("Please drop a pin within our Metro Cebu service area before submitting.", true);
-    toast("Please choose a valid service location on the map.");
-    return;
-  }
-  if (!selectedServices().length) {
-    toast("Select at least one service to continue.");
-    return;
-  }
+  if (!validateBookingStep(1) || !validateBookingStep(2) || !validateBookingStep(3)) return;
   try {
     await createBooking({
       customer: profile?.name || session.user.fullName,
@@ -117,7 +120,9 @@ async function saveBooking(event) {
     });
     event.target.reset();
     fillCustomerDefaults();
+    bookingStep = 1;
     await loadAll();
+    setBookingStep(1);
     $("bookingConfirmationModal").classList.remove("hidden");
   } catch (error) {
     if (error.message.startsWith("Preferred date cannot")) {
@@ -197,6 +202,51 @@ function initBookingMap() {
   if (window.ResizeObserver) new ResizeObserver(refreshMapSize).observe($("bookingMap"));
 }
 
+function setBookingStep(nextStep) {
+  const target = Math.max(1, Math.min(4, Number(nextStep) || 1));
+  if (target > bookingStep) {
+    for (let step = bookingStep; step < target; step += 1) {
+      if (!validateBookingStep(step)) return;
+    }
+  }
+  bookingStep = target;
+  document.querySelectorAll("[data-booking-step-panel]").forEach((panel) => panel.classList.toggle("hidden", Number(panel.dataset.bookingStepPanel) !== bookingStep));
+  document.querySelectorAll("[data-booking-step]").forEach((button) => {
+    const step = Number(button.dataset.bookingStep);
+    button.classList.toggle("is-current", step === bookingStep);
+    button.classList.toggle("is-complete", step < bookingStep);
+    button.setAttribute("aria-current", step === bookingStep ? "step" : "false");
+  });
+  $("bookingBackButton").classList.toggle("hidden", bookingStep === 1);
+  $("bookingNextButton").classList.toggle("hidden", bookingStep === 4);
+  $("bookingSubmitButton").classList.toggle("hidden", bookingStep !== 4);
+  $("bookingSummaryStep").textContent = bookingStep;
+  updateBookingReview();
+  if (bookingStep === 3 && bookingMap) requestAnimationFrame(() => bookingMap.invalidateSize());
+}
+
+function validateBookingStep(step) {
+  if (step === 1 && !selectedServices().length) {
+    toast("Select at least one service to continue.");
+    return false;
+  }
+  if (step === 2) {
+    const validDate = validateBookingDate();
+    const hasTime = Boolean(document.querySelector('input[name="bookingTime"]:checked'));
+    if (!validDate) return false;
+    if (!hasTime) { toast("Choose a preferred time slot to continue."); return false; }
+  }
+  if (step === 3) {
+    if (!$('bookingAddress').value.trim()) { toast("Enter your service address to continue."); return false; }
+    if (!$('bookingCity').value || !$('bookingLatitude').value || !$('bookingLongitude').value) {
+      setMapMessage("Please drop a pin within our Metro Cebu service area before continuing.", true);
+      toast("Please choose a valid service location on the map.");
+      return false;
+    }
+  }
+  return true;
+}
+
 async function chooseBookingLocation(event) {
   if (Date.now() - lastMapLookup < 1000) return;
   lastMapLookup = Date.now();
@@ -210,6 +260,7 @@ async function reverseGeocodeLocation(latlng, enforceRateLimit) {
   $("bookingLatitude").value = latlng.lat.toFixed(6);
   $("bookingLongitude").value = latlng.lng.toFixed(6);
   $("bookingCity").value = "";
+  updateBookingReview();
   if (enforceRateLimit) {
     if (Date.now() - lastMapLookup < 1000) return;
     lastMapLookup = Date.now();
@@ -226,6 +277,7 @@ async function reverseGeocodeLocation(latlng, enforceRateLimit) {
       return;
     }
     $("bookingCity").value = rawCity;
+    updateBookingReview();
     setMapMessage(`Location confirmed: ${rawCity}.`, false);
   } catch (error) {
     setMapMessage("We couldn't confirm this location. Please choose another point on the map.", true);
@@ -243,8 +295,23 @@ function detailedAddressFromGeocode(result = {}) {
 
 function setMapMessage(message, isError) { const element = $("bookingMapMessage"); element.textContent = message; element.classList.toggle("field-error", isError); element.classList.toggle("form-note", !isError); }
 
-function selectedServices() { return [...document.querySelectorAll("#bookingServices input:checked")].map((input) => ({ id: Number(input.dataset.serviceId), name: input.dataset.serviceName, category: input.dataset.serviceCategory, price: Number(input.dataset.servicePrice) })); }
-function updateBookingTotal() { $("bookingTotal").textContent = peso(selectedServices().reduce((sum, service) => sum + service.price, 0)); }
+function selectedServices() { return [...document.querySelectorAll("#bookingServices input:checked")].map((input) => ({ id: Number(input.dataset.serviceId), name: input.dataset.serviceName, category: input.dataset.serviceCategory, price: Number(input.dataset.servicePrice), ...(input.dataset.tierId ? { tierId: Number(input.dataset.tierId), hPower: input.dataset.hPower, unitType: input.dataset.unitType } : {}) })); }
+function updateBookingTotal() {
+  const selected = selectedServices();
+  $("bookingTotal").textContent = peso(selected.reduce((sum, service) => sum + service.price, 0));
+  $("bookingSummaryServices").innerHTML = selected.length
+    ? selected.map((service) => `<div class="booking-summary-item"><span>${escapeHtml(service.name)}${service.hPower ? `<small>${escapeHtml([service.hPower, service.unitType].filter(Boolean).join(" · "))}</small>` : ""}</span><strong>${peso(service.price)}</strong></div>`).join("")
+    : `<p class="booking-summary-empty">No services selected yet.</p>`;
+  updateBookingReview();
+}
+function updateBookingReview() {
+  if (!$('bookingReviewServices')) return;
+  const selected = selectedServices();
+  $('bookingReviewServices').innerHTML = selected.length ? selected.map((service) => `<div class="booking-review-service"><span>${escapeHtml(service.name)}${service.hPower ? ` <small>${escapeHtml([service.hPower, service.unitType].filter(Boolean).join(" · "))}</small>` : ""}</span><strong>${peso(service.price)}</strong></div>`).join("") : `<span class="booking-review-muted">No services selected.</span>`;
+  $('bookingReviewSchedule').textContent = [$("bookingDate").value, document.querySelector('input[name="bookingTime"]:checked')?.value].filter(Boolean).join(" · ") || "Not selected";
+  $('bookingReviewAddress').textContent = $("bookingAddress").value.trim() || "Not selected";
+  $('bookingReviewLocation').textContent = $("bookingCity").value ? `${$("bookingCity").value} · ${$("bookingLatitude").value}, ${$("bookingLongitude").value}` : "Not selected";
+}
 function validatePhoneField(inputId, errorId) { const input = $(inputId); input.value = input.value.replace(/\D/g, "").slice(0, 11); const valid = isValidPhilippineMobile(input.value); $(errorId).classList.toggle("hidden", valid || !input.value); input.setCustomValidity(valid ? "" : "Enter a valid 11-digit PH phone number starting with 09."); return valid; }
 function bookingServiceCategories(items) {
   const categories = new Map();
@@ -260,7 +327,9 @@ function bookingServiceChoice(service) {
   const included = bookingInfo("Included", service.inclusion, "included");
   const excluded = bookingInfo("Not included", service.exclusion, "excluded");
   const details = included || excluded ? `<div class="booking-service-details">${included}${excluded}</div>` : "";
-  return `<label class="booking-variant"><span class="service-choice-top"><input type="checkbox" data-service-id="${service.id}" data-service-name="${escapeHtml(service.name)}" data-service-category="${escapeHtml(service.type || "Uncategorized")}" data-service-price="${Number(service.price) || 0}" aria-label="Select ${escapeHtml(service.name)}" /><span class="service-choice-copy"><strong>${escapeHtml(service.name)}</strong><button type="button" class="variant-details-toggle" data-service-details aria-expanded="false">View details</button></span><b>${peso(service.price)}</b></span>${details}</label>`;
+  const tiers = Array.isArray(service.priceTiers) ? service.priceTiers : [];
+  const tierMarkup = tiers.length ? `<div class="booking-tier-pills">${tiers.map((tier) => `<label class="booking-tier-pill"><input type="radio" name="serviceTier-${service.id}" data-service-id="${service.id}" data-service-name="${escapeHtml(service.name)}" data-service-category="${escapeHtml(service.type || "Uncategorized")}" data-service-price="${Number(tier.amount) || 0}" data-tier-id="${tier.id}" data-h-power="${escapeHtml(tier.hPower || "")}" data-unit-type="${escapeHtml(tier.unitType || "")}" aria-label="Select ${escapeHtml(service.name)} ${escapeHtml(tier.hPower || "")}" /><span><strong>${escapeHtml([tier.hPower, tier.unitType].filter(Boolean).join(" · ") || "Price tier")}</strong><b>${peso(tier.amount)}</b></span></label>`).join("")}</div>` : `<label class="booking-base-choice"><input type="checkbox" data-service-id="${service.id}" data-service-name="${escapeHtml(service.name)}" data-service-category="${escapeHtml(service.type || "Uncategorized")}" data-service-price="${Number(service.price) || 0}" aria-label="Select ${escapeHtml(service.name)}" /><span><strong>Standard service</strong><b>${peso(service.price)}</b></span></label>`;
+  return `<article class="booking-service-card"><div class="booking-service-card-header"><div><strong>${escapeHtml(service.name)}</strong><button type="button" class="variant-details-toggle" data-service-details aria-expanded="false">View details</button></div>${tiers.length ? `<span class="booking-tier-count">${tiers.length} price ${tiers.length === 1 ? "tier" : "tiers"}</span>` : ""}</div>${tierMarkup}${details}</article>`;
 }
 
 function bookingInfo(label, value, status) {

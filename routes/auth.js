@@ -51,8 +51,8 @@ const {
         .input("Province", sql.NVarChar(150), address.province || "")
         .input("ZipCode", sql.NVarChar(20), address.zipCode || "")
         .query(`
-          IF NOT EXISTS (SELECT 1 FROM Customers WHERE Email = @Email)
-          INSERT INTO Customers (Name, Phone, Email, Address, HouseNumber, Street, Barangay, City, Province, ZipCode)
+          IF NOT EXISTS (SELECT 1 FROM tblCustomer WHERE Email = @Email)
+          INSERT INTO tblCustomer (Name, CNumber, Email, Address, HouseNumber, Street, Barangay, City, Province, ZipCode)
           VALUES (@Name, @Phone, @Email, @Address, @HouseNumber, @Street, @Barangay, @City, @Province, @ZipCode)
         `);
       await logAction(`Registered customer account for ${fullName}`, email, "Users", user.id);

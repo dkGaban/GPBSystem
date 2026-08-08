@@ -57,14 +57,14 @@ async function sendBookingReminder(booking, { getPool, sql, logger, baseUrl }) {
   const expiresAt = appointmentExpiry(booking.preferredDate, booking.preferredTime);
   const links = reminderLinks(baseUrl, token);
   const transport = createReminderTransport();
-  await getPool().then((pool) => pool.request().input("Id", sql.Int, booking.id).input("Token", sql.NVarChar(128), token).input("ExpiresAt", sql.DateTime, expiresAt).query("UPDATE Bookings SET ReminderToken = @Token, ReminderTokenExpiresAt = @ExpiresAt WHERE Id = @Id"));
+  await getPool().then((pool) => pool.request().input("Id", sql.Int, booking.id).input("Token", sql.NVarChar(128), token).input("ExpiresAt", sql.DateTime, expiresAt).query("UPDATE tblServiceRequest SET ReminderToken = @Token, ReminderTokenExpiresAt = @ExpiresAt WHERE RequestID = @Id"));
   await transport.sendMail({ from: process.env.EMAIL_USER, to: booking.email, subject: `Reminder: your ${booking.service} appointment is tomorrow`, text: reminderText(booking, links) });
-  await getPool().then((pool) => pool.request().input("Id", sql.Int, booking.id).query("UPDATE Bookings SET ReminderSentAt = GETDATE() WHERE Id = @Id"));
+  await getPool().then((pool) => pool.request().input("Id", sql.Int, booking.id).query("UPDATE tblServiceRequest SET ReminderSentAt = GETDATE() WHERE RequestID = @Id"));
   logger.info({ bookingId: booking.id }, "Booking reminder sent");
 }
 
 async function sendTomorrowReminders({ getPool, sql, logger, baseUrl }) {
-  const result = await (await getPool()).request().query("SELECT Id AS id, CustomerName AS customer, Email AS email, ServiceName AS service, Address AS address, PreferredDate AS preferredDate, PreferredTime AS preferredTime FROM Bookings WHERE PreferredDate = CONVERT(date, DATEADD(day, 1, GETDATE())) AND Status NOT IN ('Cancelled', 'Completed') AND ReminderSentAt IS NULL AND NULLIF(Email, '') IS NOT NULL");
+  const result = await (await getPool()).request().query("SELECT RequestID AS id, CustomerName AS customer, Email AS email, ServiceName AS service, Address AS address, RequestDate AS preferredDate, RequestTime AS preferredTime FROM tblServiceRequest WHERE RequestDate = CONVERT(date, DATEADD(day, 1, GETDATE())) AND Status NOT IN ('Cancelled', 'Completed') AND ReminderSentAt IS NULL AND NULLIF(Email, '') IS NOT NULL");
   for (const booking of result.recordset) {
     try { await sendBookingReminder(booking, { getPool, sql, logger, baseUrl }); } catch (error) { logger.error({ err: error, bookingId: booking.id }, "Booking reminder failed"); }
   }

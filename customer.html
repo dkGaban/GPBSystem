@@ -25,16 +25,58 @@
       <section id="homeTab" class="portal-tab"><header class="portal-header"><div><h1>Welcome to GBP Services</h1><p>Explore our services and products, then book when you are ready.</p></div></header><section id="services" class="marketing-section"><div class="page-heading"><div><p class="section-kicker">What we do</p><h2>Services built around your needs</h2><p>Browse available services and choose the right support for your space.</p></div></div><div id="servicesGrid" class="services-grid marketing-services"></div></section><section id="products" class="marketing-section"><div class="page-heading"><div><p class="section-kicker">Available equipment</p><h2>Products you can rely on</h2><p>Explore our current air-conditioning products and equipment.</p></div></div><section id="productsGrid" class="products-grid"></section></section></section>
       <section id="bookTab" class="portal-tab hidden">
         <div class="page-heading"><div><h2>Book a Service</h2><p>Submit a request and wait for admin approval.</p></div></div>
-        <section class="panel">
-          <form id="bookingForm" class="form-grid">
-            <fieldset class="form-field full"><legend>Services</legend><div id="bookingServices" class="service-picker"></div></fieldset>
-            <label class="form-field"><span>Preferred Date</span><input id="bookingDate" type="date" required /><small id="bookingDateError" class="field-error hidden">Preferred date cannot be in the past. Please choose today or a future date.</small></label>
-            <fieldset class="form-field"><legend>Preferred time slot</legend><div id="bookingTimeSlots" class="time-slots"></div></fieldset>
-            <label class="form-field full"><span>Address</span><input id="bookingAddress" required /></label>
-            <div class="form-field full"><span>Repair location</span><div id="bookingMap" class="service-area-map" role="application" aria-label="Choose your repair location on the map"></div><small id="bookingMapMessage" class="field-error">Drop a pin within our Metro Cebu service area.</small><input id="bookingCity" type="hidden" /><input id="bookingLatitude" type="hidden" /><input id="bookingLongitude" type="hidden" /></div>
-            <p class="form-note full">If you cancel after our technician has already arrived at your location, a ₱450 fee applies for their time and travel.</p>
-            <div class="booking-submit-row full"><div class="booking-total"><span>Booking total</span><strong id="bookingTotal">₱0.00</strong></div><button class="primary-button">Submit Booking Request</button></div>
-          </form>
+        <section class="booking-redesign-shell">
+          <div class="booking-flow-main">
+            <nav class="booking-step-indicator" aria-label="Booking progress">
+              <button type="button" class="booking-step is-current" data-booking-step="1"><span>1</span><strong>Service</strong></button>
+              <i aria-hidden="true"></i>
+              <button type="button" class="booking-step" data-booking-step="2"><span>2</span><strong>Date &amp; Time</strong></button>
+              <i aria-hidden="true"></i>
+              <button type="button" class="booking-step" data-booking-step="3"><span>3</span><strong>Location</strong></button>
+              <i aria-hidden="true"></i>
+              <button type="button" class="booking-step" data-booking-step="4"><span>4</span><strong>Review</strong></button>
+            </nav>
+            <form id="bookingForm" class="booking-flow-form">
+              <section class="booking-step-panel" data-booking-step-panel="1">
+                <div class="booking-step-heading"><span>Step 1</span><h3>Choose your service</h3><p>Select one or more services. Where available, choose a price tier that matches your unit.</p></div>
+                <div id="bookingServices" class="booking-service-groups"></div>
+              </section>
+              <section class="booking-step-panel hidden" data-booking-step-panel="2">
+                <div class="booking-step-heading"><span>Step 2</span><h3>Choose a date and time</h3><p>Pick a day and one of our available arrival windows.</p></div>
+                <div class="booking-date-time-grid">
+                  <label class="form-field"><span>Preferred date</span><input id="bookingDate" type="date" required /><small id="bookingDateError" class="field-error hidden">Preferred date cannot be in the past. Please choose today or a future date.</small></label>
+                  <fieldset class="form-field"><legend>Preferred time slot</legend><div id="bookingTimeSlots" class="time-slots"></div></fieldset>
+                </div>
+              </section>
+              <section class="booking-step-panel hidden" data-booking-step-panel="3">
+                <div class="booking-step-heading"><span>Step 3</span><h3>Set your service location</h3><p>Enter your address, then drop a pin within our Metro Cebu service area.</p></div>
+                <label class="form-field"><span>Address</span><input id="bookingAddress" required /></label>
+                <div class="form-field booking-map-field"><span>Repair location</span><div class="booking-map-frame"><div id="bookingMap" class="service-area-map" role="application" aria-label="Choose your repair location on the map"></div></div><small id="bookingMapMessage" class="field-error">Drop a pin within our Metro Cebu service area.</small><input id="bookingCity" type="hidden" /><input id="bookingLatitude" type="hidden" /><input id="bookingLongitude" type="hidden" /></div>
+              </section>
+              <section class="booking-step-panel hidden" data-booking-step-panel="4">
+                <div class="booking-step-heading"><span>Step 4</span><h3>Review your request</h3><p>Check the details below before sending your booking request.</p></div>
+                <div class="booking-review-card">
+                  <div><span>Services</span><div id="bookingReviewServices"></div></div>
+                  <div><span>Date &amp; time</span><strong id="bookingReviewSchedule">Not selected</strong></div>
+                  <div><span>Address</span><strong id="bookingReviewAddress">Not selected</strong></div>
+                  <div><span>Map location</span><strong id="bookingReviewLocation">Not selected</strong></div>
+                </div>
+                <p class="booking-fee-notice">If you cancel after our technician has already arrived at your location, a ₱450 fee applies for their time and travel.</p>
+              </section>
+              <div class="booking-flow-navigation">
+                <button type="button" id="bookingBackButton" class="secondary-button hidden">Back</button>
+                <span></span>
+                <button type="button" id="bookingNextButton" class="primary-button">Next</button>
+                <button type="submit" id="bookingSubmitButton" class="primary-button hidden">Submit Booking Request</button>
+              </div>
+            </form>
+          </div>
+          <aside id="bookingSummary" class="booking-summary" aria-live="polite">
+            <div class="booking-summary-header"><div><span>Your request</span><h3>Booking summary</h3></div><span class="booking-summary-step">Step <b id="bookingSummaryStep">1</b> of 4</span></div>
+            <div id="bookingSummaryServices" class="booking-summary-services"><p class="booking-summary-empty">No services selected yet.</p></div>
+            <div class="booking-summary-total"><span>Estimated total</span><strong id="bookingTotal">₱0.00</strong></div>
+            <p class="booking-fee-notice">If you cancel after our technician has already arrived at your location, a ₱450 fee applies for their time and travel.</p>
+          </aside>
         </section>
       </section>
       <section id="bookingsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>My Bookings</h2><p>Track your booking status.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>ID</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th><th>Actions</th></tr></thead><tbody id="bookingsBody"></tbody></table></section></section>

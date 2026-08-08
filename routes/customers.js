@@ -6,14 +6,14 @@ module.exports = function registerCustomerRoutes(app, { getPool, sql, requireUse
     try {
       const pool = await getPool();
       const result = await pool.request().query(`
-        SELECT Id AS id, Name AS name, Phone AS phone, Email AS email,
+        SELECT CustomerID AS id, Name AS name, CNumber AS phone, Email AS email,
           COALESCE(NULLIF(CONCAT(NULLIF(HouseNumber, ''), CASE WHEN NULLIF(HouseNumber, '') IS NOT NULL THEN ', ' ELSE '' END,
           NULLIF(Street, ''), CASE WHEN NULLIF(Street, '') IS NOT NULL THEN ', ' ELSE '' END,
           CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN CONCAT('Barangay ', REPLACE(Barangay, 'Barangay ', '')) ELSE NULL END,
           CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN ', ' ELSE '' END, NULLIF(City, ''), CASE WHEN NULLIF(City, '') IS NOT NULL THEN ', ' ELSE '' END,
           NULLIF(Province, ''), CASE WHEN NULLIF(Province, '') IS NOT NULL THEN ', ' ELSE '' END, NULLIF(ZipCode, '')), ''), Address) AS address,
           HouseNumber AS houseNumber, Street AS street, Barangay AS barangay, City AS city, Province AS province, ZipCode AS zipCode
-        FROM Customers ORDER BY Id DESC
+        FROM tblCustomer ORDER BY CustomerID DESC
       `);
       res.json(result.recordset);
     } catch (error) { sendInternalError(res, error, "Request failed"); }
@@ -28,11 +28,11 @@ module.exports = function registerCustomerRoutes(app, { getPool, sql, requireUse
     try {
       const pool = await getPool();
       const result = await pool.request().input("Name", sql.NVarChar(100), name).input("Phone", sql.NVarChar(50), phone).input("Email", sql.NVarChar(100), email).input("Address", sql.NVarChar(255), address.address).input("Latitude", sql.Decimal(9, 6), latitude === undefined ? null : Number(latitude)).input("Longitude", sql.Decimal(9, 6), longitude === undefined ? null : Number(longitude)).query(`
-        INSERT INTO Customers (Name, Phone, Email, Address, Latitude, Longitude)
-        OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Phone AS phone, INSERTED.Email AS email, INSERTED.Address AS address
+        INSERT INTO tblCustomer (Name, CNumber, Email, Address, Latitude, Longitude)
+        OUTPUT INSERTED.CustomerID AS id, INSERTED.Name AS name, INSERTED.CNumber AS phone, INSERTED.Email AS email, INSERTED.Address AS address
         VALUES (@Name, @Phone, @Email, @Address, @Latitude, @Longitude)
       `);
-      await logAction(`Created customer ${name}`, actorName(req), "Customers", result.recordset[0].id); res.status(201).json(result.recordset[0]);
+      await logAction(`Created customer ${name}`, actorName(req), "tblCustomer", result.recordset[0].id); res.status(201).json(result.recordset[0]);
     } catch (error) { sendInternalError(res, error, "Request failed"); }
   });
 
@@ -45,16 +45,16 @@ module.exports = function registerCustomerRoutes(app, { getPool, sql, requireUse
     try {
       const pool = await getPool();
       const result = await pool.request().input("Id", sql.Int, Number(req.params.id)).input("Name", sql.NVarChar(100), name).input("Phone", sql.NVarChar(50), phone).input("Email", sql.NVarChar(100), email).input("Address", sql.NVarChar(255), address.address).input("Latitude", sql.Decimal(9, 6), latitude === undefined ? null : Number(latitude)).input("Longitude", sql.Decimal(9, 6), longitude === undefined ? null : Number(longitude)).query(`
-        UPDATE Customers SET Name = @Name, Phone = @Phone, Email = @Email, Address = @Address, Latitude = @Latitude, Longitude = @Longitude
-        OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Phone AS phone, INSERTED.Email AS email, INSERTED.Address AS address WHERE Id = @Id
+        UPDATE tblCustomer SET Name = @Name, CNumber = @Phone, Email = @Email, Address = @Address, Latitude = @Latitude, Longitude = @Longitude
+        OUTPUT INSERTED.CustomerID AS id, INSERTED.Name AS name, INSERTED.CNumber AS phone, INSERTED.Email AS email, INSERTED.Address AS address WHERE CustomerID = @Id
       `);
       if (!result.recordset.length) return res.status(404).json({ message: "Customer not found." });
-      await logAction(`Updated customer ${name}`, actorName(req), "Customers", req.params.id); res.json(result.recordset[0]);
+      await logAction(`Updated customer ${name}`, actorName(req), "tblCustomer", req.params.id); res.json(result.recordset[0]);
     } catch (error) { sendInternalError(res, error, "Request failed"); }
   });
 
   app.delete("/api/customers/:id", requireUser, requireAdmin, async (req, res) => {
-    try { const pool = await getPool(); await pool.request().input("Id", sql.Int, Number(req.params.id)).query("DELETE FROM Customers WHERE Id = @Id"); await logAction("Deleted a customer", actorName(req), "Customers", req.params.id); res.status(204).end(); }
+    try { const pool = await getPool(); await pool.request().input("Id", sql.Int, Number(req.params.id)).query("DELETE FROM tblCustomer WHERE CustomerID = @Id"); await logAction("Deleted a customer", actorName(req), "tblCustomer", req.params.id); res.status(204).end(); }
     catch (error) { sendInternalError(res, error, "Request failed"); }
   });
 };

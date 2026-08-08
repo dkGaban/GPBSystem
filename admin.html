@@ -224,6 +224,16 @@
       <label class="form-field"><span>Inclusion</span><textarea id="serviceInclusion"></textarea></label>
       <label class="form-field"><span>Exclusion</span><textarea id="serviceExclusion"></textarea></label>
       <label class="form-field"><span>Image</span><input id="serviceImage" type="file" accept="image/*" /></label>
+      <section id="servicePriceTiersPanel" class="form-field hidden">
+        <div class="flex items-center justify-between gap-3"><span>Optional price tiers</span><small class="text-slate-500">Used for horsepower/unit-specific pricing.</small></div>
+        <div id="servicePriceTiersList" class="space-y-2"></div>
+        <div class="grid grid-cols-1 gap-2 md:grid-cols-3">
+          <input id="newTierHPower" placeholder="HPower (e.g. 1.5 HP)" />
+          <input id="newTierUnitType" placeholder="Unit type (optional)" />
+          <input id="newTierAmount" type="number" min="0.01" step="0.01" placeholder="Amount" />
+        </div>
+        <button type="button" class="secondary-button" data-add-price-tier>Add price tier</button>
+      </section>
       <div class="modal-actions">
         <button type="button" class="secondary-button" data-close>Cancel</button>
         <button class="primary-button">Save</button>

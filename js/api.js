@@ -102,6 +102,24 @@ export async function removeService(id) {
   await requestJson(`/api/services/${id}`, { method: "DELETE" });
 }
 
+export function createServicePriceTier(serviceId, tier) {
+  return requestJson(`/api/services/${serviceId}/price-tiers`, {
+    method: "POST",
+    body: JSON.stringify(tier)
+  });
+}
+
+export function updateServicePriceTier(serviceId, tierId, tier) {
+  return requestJson(`/api/services/${serviceId}/price-tiers/${tierId}`, {
+    method: "PUT",
+    body: JSON.stringify(tier)
+  });
+}
+
+export async function removeServicePriceTier(serviceId, tierId) {
+  await requestJson(`/api/services/${serviceId}/price-tiers/${tierId}`, { method: "DELETE" });
+}
+
 export function getTechnicians() {
   return requestJson("/api/technicians");
 }

@@ -3,6 +3,7 @@ import {
   createProduct,
   createSchedule,
   createService,
+  createServicePriceTier,
   createTechnician,
   getBookings,
   getCustomers,
@@ -14,11 +15,13 @@ import {
   removeCustomer,
   removeProduct,
   removeService,
+  removeServicePriceTier,
   removeTechnician,
   updateBookingStatus,
   updateCustomer,
   updateProduct,
   updateService,
+  updateServicePriceTier,
   updateTechnician
 } from "./api.js";
 import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, peso, renderProducts, requireRole, statusBadge, toast } from "./portal-utils.js";
@@ -244,6 +247,9 @@ async function handleClick(event) {
   if (button.dataset.deleteProduct) return deleteRecord("product", button.dataset.deleteProduct);
   if (button.dataset.deleteTechnician) return deleteRecord("technician", button.dataset.deleteTechnician);
   if (button.dataset.deleteCustomer) return deleteRecord("customer", button.dataset.deleteCustomer);
+  if (button.dataset.addPriceTier) return addPriceTier();
+  if (button.dataset.savePriceTier) return savePriceTier(button.dataset.savePriceTier);
+  if (button.dataset.deletePriceTier) return deletePriceTier(button.dataset.deletePriceTier);
   if (button.dataset.editService) return fillService(button.dataset.editService);
   if (button.dataset.editProduct) return fillProduct(button.dataset.editProduct);
   if (button.dataset.editTechnician) return fillTechnician(button.dataset.editTechnician);
@@ -268,6 +274,10 @@ async function deleteRecord(type, id) {
 }
 
 function openModal(id) {
+  if (id === "serviceModal" && !$("serviceId").value) {
+    $("servicePriceTiersPanel")?.classList.add("hidden");
+    if ($("servicePriceTiersList")) $("servicePriceTiersList").innerHTML = "";
+  }
   document.getElementById(id).classList.remove("hidden");
 }
 
@@ -285,7 +295,68 @@ function fillService(id) {
   document.getElementById("serviceInclusion").value = item.inclusion || "";
   document.getElementById("serviceExclusion").value = item.exclusion || "";
   $("serviceExistingImage").value = item.image || "";
+  renderPriceTierEditor(item);
   openModal("serviceModal");
+}
+
+function renderPriceTierEditor(service) {
+  const panel = $("servicePriceTiersPanel");
+  if (!panel) return;
+  panel.classList.toggle("hidden", !service?.id);
+  if (!service?.id) return;
+  const tiers = Array.isArray(service.priceTiers) ? service.priceTiers : [];
+  $("servicePriceTiersList").innerHTML = tiers.length
+    ? tiers.map((tier) => `<div class="grid grid-cols-1 items-center gap-2 rounded-lg border border-slate-200 p-2 md:grid-cols-[1fr_1fr_1fr_auto_auto]"><input id="tierHPower-${tier.id}" value="${escapeHtml(tier.hPower || "")}" placeholder="HPower" /><input id="tierUnitType-${tier.id}" value="${escapeHtml(tier.unitType || "")}" placeholder="Unit type" /><input id="tierAmount-${tier.id}" type="number" min="0.01" step="0.01" value="${escapeHtml(tier.amount ?? "")}" placeholder="Amount" /><button type="button" class="tiny-button secondary-button" data-save-price-tier="${tier.id}">Save</button><button type="button" class="tiny-button danger-button" data-delete-price-tier="${tier.id}">Delete</button></div>`).join("")
+    : `<p class="empty-note">No optional price tiers yet.</p>`;
+  $("newTierHPower").value = "";
+  $("newTierUnitType").value = "";
+  $("newTierAmount").value = "";
+}
+
+function readTierPayload(hPower, unitType, amount) {
+  const payload = { hPower: hPower.trim(), unitType: unitType.trim(), amount: amount.trim() };
+  if (!payload.hPower) { toast("Horsepower is required."); return null; }
+  if (!payload.amount || !Number.isFinite(Number(payload.amount)) || Number(payload.amount) <= 0) { toast("Amount must be a positive number."); return null; }
+  return payload;
+}
+
+async function addPriceTier() {
+  const serviceId = $("serviceId").value;
+  if (!serviceId) return toast("Save the service before adding price tiers.");
+  const payload = readTierPayload($("newTierHPower").value, $("newTierUnitType").value, $("newTierAmount").value);
+  if (!payload) return;
+  try {
+    const tier = await createServicePriceTier(serviceId, payload);
+    const service = services.find((item) => String(item.id) === String(serviceId));
+    service.priceTiers = [...(service.priceTiers || []), tier];
+    renderPriceTierEditor(service);
+    toast("Price tier added.");
+  } catch (error) { toast(error.message); }
+}
+
+async function savePriceTier(tierId) {
+  const serviceId = $("serviceId").value;
+  const payload = readTierPayload($("tierHPower-${tierId}").value, $("tierUnitType-${tierId}").value, $("tierAmount-${tierId}").value);
+  if (!payload) return;
+  try {
+    const tier = await updateServicePriceTier(serviceId, tierId, payload);
+    const service = services.find((item) => String(item.id) === String(serviceId));
+    service.priceTiers = (service.priceTiers || []).map((item) => String(item.id) === String(tierId) ? tier : item);
+    renderPriceTierEditor(service);
+    toast("Price tier updated.");
+  } catch (error) { toast(error.message); }
+}
+
+async function deletePriceTier(tierId) {
+  const serviceId = $("serviceId").value;
+  if (!confirm("Delete this price tier?")) return;
+  try {
+    await removeServicePriceTier(serviceId, tierId);
+    const service = services.find((item) => String(item.id) === String(serviceId));
+    service.priceTiers = (service.priceTiers || []).filter((item) => String(item.id) !== String(tierId));
+    renderPriceTierEditor(service);
+    toast("Price tier deleted.");
+  } catch (error) { toast(error.message); }
 }
 
 async function saveService(event) {

@@ -188,7 +188,7 @@ export function renderServiceRow(service) {
         </div>
       </td>
       <td>${escapeHtml(service.type || "")}</td>
-      <td>${escapeHtml(formatPesoPrice(service.price))}</td>
+      <td>${escapeHtml(formatPesoPrice(service.price))}${currentRole() === "admin" ? `<div class="text-xs text-slate-500">${Array.isArray(service.priceTiers) ? service.priceTiers.length : 0} price tier${Array.isArray(service.priceTiers) && service.priceTiers.length === 1 ? "" : "s"}</div>` : ""}</td>
       <td>${escapeHtml(service.inclusion || service.description || "")}</td>
       <td>${escapeHtml(service.exclusion || "")}</td>
       <td>

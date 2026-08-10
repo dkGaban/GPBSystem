@@ -250,12 +250,12 @@
       <input type="hidden" id="productId" />
       <input type="hidden" id="productExistingImage" />
       <label class="form-field"><span>Name</span><input id="productName" required /></label>
-      <label class="form-field"><span>Type</span><input id="productType" required /></label>
-      <label class="form-field"><span>Brand</span><input id="productBrand" required /></label>
+      <label class="form-field"><span>Brand</span><select id="productBrand" required><option value="">Select brand</option></select></label><label class="form-field"><span>Product Line</span><select id="productLine" required disabled><option value="">Select a brand first</option></select></label>
+      
       <label class="form-field"><span>Price</span><input id="productPrice" required /></label>
       <label class="form-field"><span>Stocks</span><input id="productStocks" type="number" min="0" required /></label>
       <label class="form-field"><span>Horsepower</span><input id="productHorsepower" required /></label>
-      <label class="form-field"><span>Image</span><input id="productImage" type="file" accept="image/*" /></label>
+      <label class="form-field"><span>Installation</span><input id="productInstallation" /></label><label class="form-field"><span>Image</span><input id="productImage" type="file" accept="image/*" /></label>
       <div class="modal-actions">
         <button type="button" class="secondary-button" data-close>Cancel</button>
         <button class="primary-button">Save</button>

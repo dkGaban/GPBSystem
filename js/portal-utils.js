@@ -97,7 +97,7 @@ export function renderProducts(products, options = {}) {
         <article class="product-card">
           <div class="product-image">${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}">` : `<span class="product-image-placeholder">Image coming soon</span>`}</div>
           <div class="product-card-body">
-            <div class="product-meta-row"><span>${escapeHtml(product.brand)}</span><span>${escapeHtml(product.type)}</span></div>
+          <span>${escapeHtml(product.productLine || product.type)}</span>
             <h3>${escapeHtml(product.name)}</h3>
             <p class="product-price">${peso(product.price)}</p>
             <dl class="product-specs"><div><dt>Stocks</dt><dd>${escapeHtml(product.stocks)}</dd></div><div><dt>Horsepower</dt><dd>${escapeHtml(product.horsepower)}</dd></div></dl>

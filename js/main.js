@@ -186,6 +186,7 @@ export function cacheElements() {
     "productName",
     "productType",
     "productBrand",
+    "productLine",
     "productPrice",
     "productStocks",
     "productHorsepower",

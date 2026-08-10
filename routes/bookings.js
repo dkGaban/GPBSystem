@@ -55,7 +55,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
           if (!Number.isFinite(horsePower) || horsePower <= 0) { const error = new Error("Horsepower must be a positive number for each unit."); error.statusCode = 400; throw error; }
           if (!Number.isInteger(brandId) || brandId <= 0) { const error = new Error("A valid brand is required for each unit."); error.statusCode = 400; throw error; }
           if (!Number.isInteger(quantity) || quantity <= 0) { const error = new Error("Unit quantity must be a positive whole number."); error.statusCode = 400; throw error; }
-          const match = await matchServicePrice(pool, sql, service.Id, horsePower, technology);
+          const match = await matchServicePrice(pool, sql, service.Id, horsePower, technology, airconType);
           if (!match) { const error = new Error("Unable to match a price for one of the selected units."); error.statusCode = 400; throw error; }
           preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount: Number(match.amount) });
         }

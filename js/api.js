@@ -88,9 +88,15 @@ export function getBrands() {
   return requestJson("/api/brands");
 }
 
-export function matchServicePrice(serviceId, hPower, unitType) {
+export function getProductServices(brandId) {
+  const query = brandId ? `?brandId=${encodeURIComponent(brandId)}` : "";
+  return requestJson(`/api/product-services${query}`);
+}
+
+export function matchServicePrice(serviceId, hPower, unitType, airconType) {
   const params = new URLSearchParams({ hPower: String(hPower) });
   if (unitType) params.set("unitType", unitType);
+  if (airconType) params.set("airconType", airconType);
   return requestJson(`/api/services/${serviceId}/price-match?${params.toString()}`);
 }
 

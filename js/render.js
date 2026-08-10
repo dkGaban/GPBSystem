@@ -295,7 +295,7 @@ export function renderProducts() {
           <div class="product-card-body">
             <div class="product-meta-row">
               <span>${escapeHtml(product.brand || "Product")}</span>
-              <span>${escapeHtml(product.type || "General")}</span>
+              <span>${escapeHtml(product.productLine || product.type || "General")}</span>
             </div>
             <h3>${escapeHtml(product.name)}</h3>
             <p class="product-price">${escapeHtml(formatPesoPrice(product.price))}</p>

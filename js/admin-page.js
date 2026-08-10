@@ -6,6 +6,8 @@ import {
   createServicePriceTier,
   createTechnician,
   getBookings,
+  getBrands,
+  getProductServices,
   getCustomers,
   getLogs,
   getProducts,
@@ -33,6 +35,9 @@ let technicians = [];
 let customers = [];
 let bookings = [];
 let logs = [];
+let brands = [];
+let productLines = [];
+let productServices = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -45,6 +50,7 @@ async function init() {
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeModals));
   document.getElementById("serviceForm").addEventListener("submit", saveService);
   document.getElementById("productForm").addEventListener("submit", saveProduct);
+  $("productBrand").addEventListener("change", loadProductLines);
   document.getElementById("technicianForm").addEventListener("submit", saveTechnician);
   document.getElementById("customerForm").addEventListener("submit", saveCustomer);
   document.getElementById("customerSearch").addEventListener("input", renderCustomers);
@@ -55,13 +61,14 @@ async function init() {
 }
 
 async function loadAll() {
-  [services, products, technicians, customers, bookings, logs] = await Promise.all([
+  [services, products, technicians, customers, bookings, logs, brands] = await Promise.all([
     getServices(),
     getProducts(),
     getTechnicians(),
     getCustomers(),
     getBookings(),
-    getLogs()
+    getLogs(),
+    getBrands()
   ]);
   render();
 }
@@ -239,7 +246,7 @@ function renderBookingMonitor() {
 async function handleClick(event) {
   const button = event.target.closest("button");
   if (!button) return;
-  if (button.dataset.open) return openModal(button.dataset.open);
+  if (button.dataset.open) { if (button.dataset.open === "productModal") prepareProductForm(); return openModal(button.dataset.open); }
   if (button.dataset.approve) return changeBooking(button.dataset.approve, "Approved");
   if (button.dataset.reject) return changeBooking(button.dataset.reject, "Rejected");
   if (button.dataset.deleteBooking) return deleteRecord("booking", button.dataset.deleteBooking);
@@ -375,7 +382,7 @@ async function saveService(event) {
   }
 }
 
-function fillProduct(id) {
+function fillProductLegacy(id) {
   const item = products.find((product) => String(product.id) === String(id));
   $("productId").value = item.id;
   $("productName").value = item.name || "";
@@ -388,7 +395,7 @@ function fillProduct(id) {
   openModal("productModal");
 }
 
-async function saveProduct(event) {
+async function saveProductLegacy(event) {
   event.preventDefault();
   const id = $("productId").value;
   const payload = { name: $("productName").value.trim(), type: $("productType").value.trim(), brand: $("productBrand").value.trim(), price: $("productPrice").value.trim(), stocks: $("productStocks").value.trim(), horsepower: $("productHorsepower").value.trim(), image: await fileToDataUrl($("productImage"), $("productExistingImage").value) };
@@ -504,3 +511,50 @@ function ensureAdminCityFields() {
 }
 
 function inferServiceAreaCity(address) { const value = String(address || "").toLowerCase(); return ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].find((city) => value.includes(city.toLowerCase())) || ""; }
+
+async function prepareProductForm() {
+  const brandSelect = $("productBrand");
+  brandSelect.innerHTML = '<option value="">Select brand</option>' + brands.map((brand) => `<option value="${brand.id}">${escapeHtml(brand.name)}</option>`).join("");
+  $("productLine").innerHTML = '<option value="">Select a brand first</option>';
+  $("productLine").disabled = true;
+}
+
+async function loadProductLines() {
+  const brandId = $("productBrand").value;
+  const select = $("productLine");
+  select.innerHTML = '<option value="">Loading product lines...</option>';
+  select.disabled = true;
+  if (!brandId) { select.innerHTML = '<option value="">Select a brand first</option>'; return; }
+  try {
+    productLines = await getProductServices(brandId);
+    select.innerHTML = '<option value="">Select product line</option>' + productLines.map((line) => `<option value="${line.id}">${escapeHtml(line.serviceName)}${line.modelCode ? ` — ${escapeHtml(line.modelCode)}` : ""}</option>`).join("");
+    select.disabled = false;
+  } catch (error) { select.innerHTML = '<option value="">Unable to load product lines</option>'; toast(error.message); }
+}
+
+async function fillProduct(id) {
+  const item = products.find((product) => String(product.id) === String(id));
+  if (!item) return;
+  await prepareProductForm();
+  $("productId").value = item.id;
+  $("productName").value = item.name || "";
+  $("productBrand").value = item.brandId || "";
+  await loadProductLines();
+  $("productLine").value = item.pServiceId || "";
+  $("productPrice").value = item.price || "";
+  $("productStocks").value = item.stocks || "";
+  $("productHorsepower").value = item.horsepower || "";
+  $("productInstallation").value = item.installation || "";
+  $("productImage").value = "";
+  $("productExistingImage").value = item.image || "";
+  openModal("productModal");
+}
+
+async function saveProduct(event) {
+  event.preventDefault();
+  const id = $("productId").value;
+  const payload = { name: $("productName").value.trim(), brandId: Number($("productBrand").value), pServiceId: Number($("productLine").value), price: $("productPrice").value.trim(), stocks: $("productStocks").value.trim(), horsepower: $("productHorsepower").value.trim(), installation: $("productInstallation").value.trim(), image: await fileToDataUrl($("productImage"), $("productExistingImage").value) };
+  if (!payload.brandId || !payload.pServiceId) return toast("Choose a brand and product line.");
+  if (!payload.name || !payload.horsepower) return toast("Name and horsepower are required.");
+  try { id ? await updateProduct(id, payload) : await createProduct(payload); closeModals(); await loadAll(); } catch (error) { toast(error.message); }
+}

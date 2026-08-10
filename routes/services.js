@@ -45,20 +45,30 @@ async function getPriceTiers(pool, sql, serviceId) {
   return result.recordset;
 }
 
-async function matchServicePrice(pool, sql, serviceId, hPower, unitType = "") {
+async function matchServicePrice(pool, sql, serviceId, hPower, unitType = "", airconType = "") {
   const targetHorsePower = Number(hPower);
   const serviceResult = await pool.request().input("ServiceID", sql.Int, serviceId).query("SELECT TOP 1 Price FROM tblService WHERE ServiceID = @ServiceID");
   if (!serviceResult.recordset.length) return null;
   const tiers = await getPriceTiers(pool, sql, serviceId);
   if (!tiers.length) return { amount: Number(serviceResult.recordset[0].Price), matchedTierId: null, usedBasePrice: true };
+  const normalizedAirconType = String(airconType || "").trim().toLowerCase();
   const normalizedUnitType = String(unitType || "").trim().toLowerCase();
+  const airconTypeMatch = normalizedAirconType
+    ? tiers.find((tier) => String(tier.unitType || "").trim().toLowerCase() === normalizedAirconType)
+    : null;
+  const tierHorsePower = (tier) => {
+    const numericValue = Number(tier.hPower);
+    if (Number.isFinite(numericValue)) return numericValue;
+    const firstNumber = String(tier.hPower || "").match(/[0-9]+(?:\.[0-9]+)?/);
+    return firstNumber ? Number(firstNumber[0]) : NaN;
+  };
   const exact = normalizedUnitType
-    ? tiers.find((tier) => Number(tier.hPower) === targetHorsePower && String(tier.unitType || "").trim().toLowerCase() === normalizedUnitType)
+    ? tiers.find((tier) => (tierHorsePower(tier) === targetHorsePower || String(tier.hPower || "").trim() === String(hPower || "").trim()) && String(tier.unitType || "").trim().toLowerCase() === normalizedUnitType)
     : null;
   const closest = tiers
-    .filter((tier) => Number.isFinite(Number(tier.hPower)))
-    .sort((first, second) => Math.abs(Number(first.hPower) - targetHorsePower) - Math.abs(Number(second.hPower) - targetHorsePower))[0];
-  const match = exact || closest;
+    .filter((tier) => Number.isFinite(tierHorsePower(tier)) && Number.isFinite(targetHorsePower))
+    .sort((first, second) => Math.abs(tierHorsePower(first) - targetHorsePower) - Math.abs(tierHorsePower(second) - targetHorsePower))[0];
+  const match = airconTypeMatch || exact || closest;
   return match
     ? { amount: Number(match.amount), matchedTierId: match.id, usedBasePrice: false }
     : { amount: Number(serviceResult.recordset[0].Price), matchedTierId: null, usedBasePrice: true };
@@ -83,11 +93,12 @@ module.exports = function registerServiceRoutes(app, { getPool, sql, requireUser
     const serviceId = Number(req.params.id);
     const hPower = Number(req.query.hPower);
     const unitType = String(req.query.unitType || "").trim();
+    const airconType = String(req.query.airconType || "").trim();
     if (!Number.isInteger(serviceId) || serviceId <= 0) return res.status(404).json({ message: "Service not found." });
-    if (req.query.hPower === undefined || req.query.hPower === "" || !Number.isFinite(hPower)) return res.status(400).json({ message: "A valid hPower number is required." });
+    if ((!Number.isFinite(hPower) || req.query.hPower === "") && !airconType) return res.status(400).json({ message: "A valid hPower number or airconType is required." });
     try {
       const pool = await getPool();
-      const match = await matchServicePrice(pool, sql, serviceId, hPower, unitType);
+      const match = await matchServicePrice(pool, sql, serviceId, hPower, unitType, airconType);
       if (!match) return res.status(404).json({ message: "Service not found." });
       const tier = match.matchedTierId ? (await pool.request().input("SPriceID", sql.Int, match.matchedTierId).query("SELECT SPriceID AS id, HPower AS hPower, UnitType AS unitType FROM tblServicePrice WHERE SPriceID = @SPriceID")).recordset[0] : null;
       res.json({ amount: match.amount, matchedTier: tier || null, usedBasePrice: match.usedBasePrice });

@@ -796,11 +796,6 @@ html { scroll-behavior: smooth; }
 .booking-service-card-header > div { display: grid; gap: 5px; }
 .booking-service-card-header > div > strong { color: #0f2d58; font-size: 16px; font-weight: 900; }
 .booking-tier-count { color: #0369a1; font-size: 11px; font-weight: 800; white-space: nowrap; }
-.booking-base-choice { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid #dbe7f4; border-radius: 11px; background: #fff; padding: 12px 14px; cursor: pointer; }
-.booking-base-choice:has(input:checked) { border-color: #0a47a3; background: #eef5ff; }
-.booking-base-choice input { width: 17px; height: 17px; accent-color: #0a47a3; }
-.booking-base-choice > span { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex: 1; color: #334155; font-size: 13px; }
-.booking-base-choice b, .booking-tier-pill b { color: #0a47a3; font-size: 13px; font-weight: 900; white-space: nowrap; }
 .booking-tier-pills { display: flex; flex-wrap: wrap; gap: 9px; }
 .booking-tier-pill { display: inline-flex; min-width: 145px; flex: 1 1 145px; cursor: pointer; }
 .booking-tier-pill input { position: absolute; opacity: 0; pointer-events: none; }
@@ -1407,7 +1402,9 @@ html { scroll-behavior: smooth; }
 .booking-unit-field select, .booking-unit-field input { width: 100%; min-height: 2.5rem; border: 1px solid #cbd5e1; border-radius: .65rem; background: white; padding: .5rem .65rem; color: #0f172a; }
 .booking-stepper { display: grid; grid-template-columns: 2rem 1fr 2rem; align-items: center; border: 1px solid #cbd5e1; border-radius: .65rem; background: white; overflow: hidden; }
 .booking-stepper button { border: 0; background: #eff6ff; color: #0a47a3; height: 2.5rem; font-weight: 800; cursor: pointer; }
-.booking-stepper input { border: 0; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 0; text-align: center; }
+.booking-stepper input { border: 0; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 0; text-align: center; width: 100%; font-size: 1rem; font-weight: 600; color: #0f172a; -moz-appearance: textfield; }
+.booking-stepper input::-webkit-outer-spin-button,
+.booking-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .booking-unit-price { margin-top: .8rem; color: #0a47a3; font-size: .9rem; font-weight: 800; }
 .booking-tier-service-toggle { display: flex; align-items: center; gap: .6rem; padding: .8rem 0; color: #0f172a; cursor: pointer; }
 .booking-tier-service-toggle input { accent-color: #0a47a3; width: 1.1rem; height: 1.1rem; }

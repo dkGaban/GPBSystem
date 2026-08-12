@@ -15,7 +15,7 @@
 </head>
 <body>
   <div class="portal-shell">
-    <div class="portal-brand"><div class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></div><strong>GBP Electro -Mechanical Services</strong></div>
+    <div class="portal-brand"><div class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></div><strong>GBP Electro -Mechanical Services</strong><button id="logoutButton" class="secondary-button">Logout</button></div>
     <aside class="portal-sidebar">
       <nav class="portal-nav">
         <button class="nav-link active" data-tab="dashboard"><span class="nav-icon icon-dashboard"></span>Dashboard</button>
@@ -26,7 +26,7 @@
       </nav>
     </aside>
     <main class="portal-main">
-      <header class="portal-header"><div><h1>Technician Dashboard</h1><p>Review assigned jobs, schedules, and update job progress.</p></div><button id="logoutButton" class="secondary-button">Logout</button></header>
+      <header class="portal-header"><div><h1>Technician Dashboard</h1><p>Review assigned jobs, schedules, and update job progress.</p></div></header>
       <section id="dashboardTab" class="portal-tab"><div id="statsGrid" class="stats-grid"></div><section class="panel"><div class="panel-header"><h2>Assigned Jobs</h2></div><table class="data-table"><thead><tr><th>ID</th><th>Customer</th><th>Service</th><th>Schedule</th><th>Status</th><th>Update</th></tr></thead><tbody id="jobsBody"></tbody></table></section></section>
       <section id="jobsTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Assigned Jobs</h2><p>Update progress for assigned service work.</p></div></div><section class="panel"><table class="data-table"><thead><tr><th>ID</th><th>Customer</th><th>Service</th><th>Address</th><th>Status</th><th>Update</th></tr></thead><tbody id="jobsPageBody"></tbody></table></section></section>
       <section id="scheduleTab" class="portal-tab hidden"><div class="page-heading"><div><h2>Schedule</h2><p>Your service schedule.</p></div></div><section class="panel"><div class="schedule-grid-header"><span>Customer</span><span>Service</span><span>Time</span><span>Address</span><span>Status</span></div><div id="scheduleList"></div></section></section>

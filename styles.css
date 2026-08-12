@@ -45,6 +45,7 @@ body {
   grid-row: 1;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   min-width: 0;
   height: 56px;
@@ -54,6 +55,9 @@ body {
   font-size: 15px;
   font-weight: 800;
 }
+
+.portal-brand #logoutButton { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.4); color: #ffffff; font-size: 13px; padding: 8px 16px; }
+.portal-brand #logoutButton:hover { background: rgba(255,255,255,0.22); }
 
 .portal-nav {
   display: grid;

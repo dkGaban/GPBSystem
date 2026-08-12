@@ -107,7 +107,7 @@ function renderStats() {
 
 function bookingRows(items) {
   return items.length
-    ? items.map((booking) => `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}</td><td><button class="tiny-button success-button" data-approve="${booking.id}">Approve</button><button class="tiny-button warning-button" data-reject="${booking.id}">Reject</button><button class="tiny-button danger-button" data-delete-booking="${booking.id}">Delete</button></td></tr>`).join("")
+    ? items.map((booking) => `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}</td><td><button class="tiny-button success-button" data-approve="${booking.id}">Approve</button><button class="tiny-button warning-button" data-reject="${booking.id}">Reject</button></td></tr>`).join("")
     : `<tr><td colspan="7" class="text-center text-slate-500">No bookings yet.</td></tr>`;
 }
 
@@ -249,7 +249,6 @@ async function handleClick(event) {
   if (button.dataset.open) { if (button.dataset.open === "productModal") prepareProductForm(); return openModal(button.dataset.open); }
   if (button.dataset.approve) return changeBooking(button.dataset.approve, "Approved");
   if (button.dataset.reject) return changeBooking(button.dataset.reject, "Rejected");
-  if (button.dataset.deleteBooking) return deleteRecord("booking", button.dataset.deleteBooking);
   if (button.dataset.deleteService) return deleteRecord("service", button.dataset.deleteService);
   if (button.dataset.deleteProduct) return deleteRecord("product", button.dataset.deleteProduct);
   if (button.dataset.deleteTechnician) return deleteRecord("technician", button.dataset.deleteTechnician);

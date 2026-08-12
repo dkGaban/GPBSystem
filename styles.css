@@ -981,6 +981,29 @@ html { scroll-behavior: smooth; }
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
 }
 
+.form-section-label {
+  margin-top: 0.5rem;
+  color: #1e3a5f;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.form-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-field-row .form-field {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .form-field-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .calendar-strip {
   display: grid;
   grid-template-columns: 34px 1fr 34px;

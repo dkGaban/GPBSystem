@@ -343,7 +343,7 @@ async function addPriceTier() {
 
 async function savePriceTier(tierId) {
   const serviceId = $("serviceId").value;
-  const payload = readTierPayload($("tierHPower-${tierId}").value, $("tierUnitType-${tierId}").value, $("tierAmount-${tierId}").value);
+  const payload = readTierPayload($(`tierHPower-${tierId}`).value, $(`tierUnitType-${tierId}`).value, $(`tierAmount-${tierId}`).value);
   if (!payload) return;
   try {
     const tier = await updateServicePriceTier(serviceId, tierId, payload);

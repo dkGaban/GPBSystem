@@ -69,8 +69,17 @@ async function init() {
     }
     if (event.target.closest("[data-book-service]")) {
       const id = event.target.closest("[data-book-service]").dataset.bookService;
-      document.querySelector(`[data-service-id="${CSS.escape(id)}"]`)?.click();
       document.querySelector("[data-tab='book']").click();
+      requestAnimationFrame(() => {
+        const toggle = document.querySelector(`.booking-service-card[data-service-id="${CSS.escape(id)}"] input[data-service-unit-toggle]`);
+        if (toggle) {
+          if (!toggle.checked) {
+            toggle.checked = true;
+            toggle.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+          toggle.closest(".booking-service-card")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      });
     }
     if (event.target.closest("[data-book-product]")) {
       document.querySelector("[data-tab='book']").click();
@@ -446,7 +455,7 @@ function bookingServiceChoice(service) {
   const excluded = bookingInfo("Not included", service.exclusion, "excluded");
   const details = included || excluded ? `<div class="booking-service-details">${included}${excluded}</div>` : "";
   const detailsToggle = included || excluded ? `<button type="button" class="variant-details-toggle" data-service-details aria-expanded="false">View details</button>` : "";
-  const markup = `<label class="booking-tier-service-toggle"><input type="checkbox" data-service-unit-toggle aria-label="Select ${escapeHtml(service.name)}" /><span>Select this service</span><b>Configure units</b></label><div class="booking-unit-blocks hidden" data-unit-blocks data-service-id="${service.id}">${unitBlockMarkup(service, 0)}<button type="button" class="booking-add-unit" data-add-unit="${service.id}">+ Add More Unit</button></div>`;
+  const markup = `<label class="booking-tier-service-toggle"><input type="checkbox" data-service-unit-toggle aria-label="Select ${escapeHtml(service.name)}" /><span>Select this service</span><b>Add your aircon details</b></label><div class="booking-unit-blocks hidden" data-unit-blocks data-service-id="${service.id}">${unitBlockMarkup(service, 0)}<button type="button" class="booking-add-unit" data-add-unit="${service.id}">+ Add More Unit</button></div>`;
   return `<article class="booking-service-card" data-service-id="${service.id}"><div class="booking-service-card-header"><div><strong>${escapeHtml(service.name)}</strong>${detailsToggle}</div></div>${markup}${details}</article>`;
 }
 

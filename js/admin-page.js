@@ -411,9 +411,7 @@ function fillTechnician(id) {
   $("technicianStatus").value = item.status || "Active";
   $("technicianPhone").value = item.phoneNumber || "";
   $("technicianEmail").value = item.email || "";
-  $("technicianCity").value = item.city || inferServiceAreaCity(item.address);
   $("technicianAddress").value = item.address || "";
-  $("technicianPassword").value = "";
   openModal("technicianModal");
 }
 
@@ -438,9 +436,7 @@ async function saveTechnician(event) {
     status: $("technicianStatus").value,
     phoneNumber,
     email: $("technicianEmail").value.trim(),
-    city: $("technicianCity").value,
     address: $("technicianAddress").value.trim(),
-    password: $("technicianPassword").value,
     ...(photo ? { profilePhoto: { name: photo.name, data: await fileToDataUrl(photoInput) } } : {})
   };
   try {
@@ -500,7 +496,7 @@ async function saveSchedule(event) {
 
 function ensureAdminCityFields() {
   const cities = ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"];
-  [["technicianAddress", "technicianCity"], ["customerAddress", "customerCity"]].forEach(([addressId, cityId]) => {
+  [["customerAddress", "customerCity"]].forEach(([addressId, cityId]) => {
     if ($(cityId)) return;
     const field = document.createElement("label");
     field.className = "form-field";

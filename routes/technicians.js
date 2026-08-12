@@ -1,49 +1,36 @@
 const { saveProfilePhoto } = require("../utils/address");
-const { isValidPhilippineMobile, isValidEmail, isStrongPassword, normalizeEmail, validateTechnicianPayload } = require("../utils/validation");
+const { isValidPhilippineMobile, isValidEmail, normalizeEmail, validateTechnicianPayload } = require("../utils/validation");
 
-module.exports = function registerTechnicianRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError, hashPassword, validateServiceArea }) {
-  app.use("/api/technicians", (req, res, next) => {
-    if (req.method === "PUT") {
-      const serviceAreaError = validateServiceArea({ city: req.body.city, latitude: req.body.latitude, longitude: req.body.longitude });
-      if (serviceAreaError) return res.status(400).json({ message: serviceAreaError });
-    }
-    next();
-  });
-
+module.exports = function registerTechnicianRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError, hashPassword }) {
   app.get("/api/technicians", requireUser, async (req, res) => {
     if (req.user.role !== "admin") return res.status(403).json({ message: "Admin access required." });
     try { const result = await (await getPool()).request().query(`SELECT Id AS id, Name AS name, Specialty AS specialty, Status AS status, PhoneNumber AS phoneNumber, Email AS email, Address AS address, ProfilePhoto AS profilePhoto FROM Technicians ORDER BY Id DESC`); res.json(result.recordset); } catch (error) { sendInternalError(res, error, "Request failed"); }
   });
 
   app.post("/api/technicians", requireUser, requireAdmin, async (req, res) => {
-    const { name, specialty, status = "Active", phoneNumber, address, city, latitude, longitude, password = "", profilePhoto } = req.body;
+    const { name, specialty, status = "Active", phoneNumber, address, latitude, longitude, profilePhoto } = req.body;
     const email = normalizeEmail(req.body.email);
     const validationError = validateTechnicianPayload({ name, specialty, phoneNumber, email, address });
     if (validationError) return res.status(400).json({ message: validationError });
-    const serviceAreaError = validateServiceArea({ city, latitude, longitude });
-    if (serviceAreaError) return res.status(400).json({ message: serviceAreaError });
-    if (password && !isStrongPassword(password)) return res.status(400).json({ message: "Temporary password must be at least 8 characters and include uppercase, lowercase, and a number." });
     try {
       const pool = await getPool();
       const existingUser = await pool.request().input("Email", sql.NVarChar(150), email).query("SELECT TOP 1 Id FROM Users WHERE Email = @Email");
       if (existingUser.recordset.length) return res.status(409).json({ message: "That email is already registered." });
       const savedPhoto = await saveProfilePhoto(profilePhoto);
       const result = await pool.request().input("Name", sql.NVarChar(100), name).input("Specialty", sql.NVarChar(100), specialty).input("Status", sql.NVarChar(50), status).input("PhoneNumber", sql.NVarChar(11), phoneNumber.trim()).input("Email", sql.NVarChar(255), email).input("Address", sql.NVarChar(255), address.trim()).input("Latitude", sql.Decimal(9, 6), latitude === undefined ? null : Number(latitude)).input("Longitude", sql.Decimal(9, 6), longitude === undefined ? null : Number(longitude)).input("ProfilePhoto", sql.NVarChar(255), savedPhoto || null).query(`INSERT INTO Technicians (Name, Specialty, Status, PhoneNumber, Email, Address, Latitude, Longitude, ProfilePhoto) OUTPUT INSERTED.Id AS id, INSERTED.Name AS name, INSERTED.Specialty AS specialty, INSERTED.Status AS status, INSERTED.PhoneNumber AS phoneNumber, INSERTED.Email AS email, INSERTED.Address AS address, INSERTED.ProfilePhoto AS profilePhoto VALUES (@Name, @Specialty, @Status, @PhoneNumber, @Email, @Address, @Latitude, @Longitude, @ProfilePhoto)`);
-      const initialPassword = String(password || phoneNumber).trim();
+      const initialPassword = phoneNumber.trim();
       const { salt, hash } = hashPassword(initialPassword);
-      await pool.request().input("Username", sql.NVarChar(80), email.split("@")[0].toLowerCase()).input("FullName", sql.NVarChar(100), name).input("Email", sql.NVarChar(150), email).input("PasswordHash", sql.NVarChar(255), hash).input("PasswordSalt", sql.NVarChar(80), salt).input("Role", sql.NVarChar(30), "technician").input("MustChangePassword", sql.Bit, password ? 0 : 1).query("INSERT INTO Users (Username, FullName, Email, PasswordHash, PasswordSalt, Role, MustChangePassword) VALUES (@Username, @FullName, @Email, @PasswordHash, @PasswordSalt, @Role, @MustChangePassword)");
+      await pool.request().input("Username", sql.NVarChar(80), email.split("@")[0].toLowerCase()).input("FullName", sql.NVarChar(100), name).input("Email", sql.NVarChar(150), email).input("PasswordHash", sql.NVarChar(255), hash).input("PasswordSalt", sql.NVarChar(80), salt).input("Role", sql.NVarChar(30), "technician").input("MustChangePassword", sql.Bit, 1).query("INSERT INTO Users (Username, FullName, Email, PasswordHash, PasswordSalt, Role, MustChangePassword) VALUES (@Username, @FullName, @Email, @PasswordHash, @PasswordSalt, @Role, @MustChangePassword)");
       await logAction(`Created technician ${name}`, actorName(req), "Technicians", result.recordset[0].id);
       res.status(201).json(result.recordset[0]);
     } catch (error) { sendInternalError(res, error, "Request failed"); }
   });
 
   app.put("/api/technicians/:id", requireUser, requireAdmin, async (req, res) => {
-    const { name, specialty, status = "Active", phoneNumber, address, city, latitude, longitude, profilePhoto } = req.body;
+    const { name, specialty, status = "Active", phoneNumber, address, latitude, longitude, profilePhoto } = req.body;
     const email = normalizeEmail(req.body.email);
     const validationError = validateTechnicianPayload({ name, specialty, phoneNumber, email, address });
     if (validationError) return res.status(400).json({ message: validationError });
-    const serviceAreaError = validateServiceArea({ city, latitude, longitude });
-    if (serviceAreaError) return res.status(400).json({ message: serviceAreaError });
     try {
       const pool = await getPool();
       const duplicate = await pool.request().input("Email", sql.NVarChar(255), email).input("Id", sql.Int, Number(req.params.id)).query("SELECT TOP 1 Id FROM Technicians WHERE Email = @Email AND Id <> @Id");

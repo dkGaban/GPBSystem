@@ -201,7 +201,7 @@ export function createBooking(booking) {
     name: service.name,
     price: service.price,
     ...(Array.isArray(service.units) && service.units.length ? {
-      units: service.units.map((unit) => ({ airconType: unit.airconType, brandId: Number(unit.brandId), technology: unit.technology, horsePower: Number(unit.horsePower), quantity: Number(unit.quantity) }))
+      units: service.units.map((unit) => ({ airconType: unit.airconType, brandId: Number(unit.brandId), technology: unit.technology, horsePower: Number(unit.horsePower), quantity: Number(unit.quantity), ...(unit.problem ? { problem: unit.problem } : {}) }))
     } : {})
   })) };
   return requestJson("/api/bookings", {

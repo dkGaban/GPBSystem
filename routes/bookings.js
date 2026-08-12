@@ -43,18 +43,36 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
         if (selected && typeof selected === "object" && selected.units !== undefined && !Array.isArray(selected.units)) {
           const error = new Error("Service units must be an array."); error.statusCode = 400; throw error;
         }
+        const isRepair = String(service.Type || "").trim().toLowerCase() === "repair";
         const units = Array.isArray(selected?.units) ? selected.units.filter(Boolean) : [];
         const preparedUnits = [];
         for (const unit of units) {
+          const quantity = Number(unit.quantity ?? 1);
+          if (!Number.isInteger(quantity) || quantity <= 0) { const error = new Error("Unit quantity must be a positive whole number."); error.statusCode = 400; throw error; }
+          if (isRepair) {
+            const problem = String(unit.problem || "").trim();
+            if (!problem) { const error = new Error("Please select the problem for each unit."); error.statusCode = 400; throw error; }
+            const airconType = String(unit.airconType || "").trim() || null;
+            const technology = String(unit.technology || "").trim() || null;
+            const rawBrandId = String(unit.brandId ?? "").trim();
+            const brandId = rawBrandId ? Number(unit.brandId) : null;
+            let brandName = null;
+            if (rawBrandId) {
+              if (!Number.isInteger(brandId) || brandId <= 0) { const error = new Error("A valid brand is required when a Repair brand is selected."); error.statusCode = 400; throw error; }
+              const brandResult = await pool.request().input("BrandID", sql.Int, brandId).query("SELECT TOP 1 Name FROM tblBrand WHERE BrandID = @BrandID");
+              brandName = brandResult.recordset[0]?.Name || null;
+              if (!brandName) { const error = new Error("The selected Repair brand is no longer available."); error.statusCode = 400; throw error; }
+            }
+            preparedUnits.push({ problem, airconType, technology, horsePower: null, brandId, brandName, quantity, amount: Number(service.Price || 0) });
+            continue;
+          }
           const airconType = String(unit.airconType || "").trim();
           const technology = String(unit.technology || "").trim();
           const horsePower = Number(unit.horsePower);
           const brandId = Number(unit.brandId);
-          const quantity = Number(unit.quantity ?? 1);
           if (!airconType || !technology) { const error = new Error("Aircon type and technology are required for each unit."); error.statusCode = 400; throw error; }
           if (!Number.isFinite(horsePower) || horsePower <= 0) { const error = new Error("Horsepower must be a positive number for each unit."); error.statusCode = 400; throw error; }
           if (!Number.isInteger(brandId) || brandId <= 0) { const error = new Error("A valid brand is required for each unit."); error.statusCode = 400; throw error; }
-          if (!Number.isInteger(quantity) || quantity <= 0) { const error = new Error("Unit quantity must be a positive whole number."); error.statusCode = 400; throw error; }
           const match = await matchServicePrice(pool, sql, service.Id, horsePower, technology, airconType);
           if (!match) { const error = new Error("Unable to match a price for one of the selected units."); error.statusCode = 400; throw error; }
           preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount: Number(match.amount) });
@@ -89,7 +107,8 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
               .input("HorsePower", sql.Decimal(4, 2), unit.horsePower)
               .query("INSERT INTO tblCustomerUnit (CustomerID, BrandID, AirconType, Technology, HorsePower) OUTPUT INSERTED.CUnitID AS id VALUES (@CustomerID, @BrandID, @AirconType, @Technology, @HorsePower)");
             const cUnitId = customerUnit.recordset[0].id;
-            const description = `${unit.airconType} ${unit.technology} ${unit.horsePower}HP`;
+            const repairContext = [unit.airconType, unit.brandName, unit.technology].filter(Boolean).join(", ");
+            const description = unit.problem ? ["Repair", repairContext, unit.problem].filter(Boolean).join(" \\u2014 ") : `${unit.airconType} ${unit.technology} ${unit.horsePower}HP`;
             await transaction.request().input("RequestID", sql.Int, requestId).input("CUnitID", sql.Int, cUnitId)
               .input("Quantity", sql.Int, unit.quantity).input("Description", sql.NVarChar(500), description)
               .input("UPrice", sql.Decimal(10, 2), unit.amount).input("SubTotal", sql.Decimal(10, 2), unit.amount * unit.quantity)

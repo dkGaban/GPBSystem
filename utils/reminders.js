@@ -52,6 +52,58 @@ Important policy reminder:
 If you decide to cancel after our technician has already arrived on the day of service, a ₱450 fee applies for their time and travel.`;
 }
 
+function formatPeso(amount) {
+  return `₱${Number(amount || 0).toFixed(2)}`;
+}
+
+function confirmationServiceLines(pricedServices) {
+  const lines = [];
+  for (const service of pricedServices) {
+    const units = Array.isArray(service.units) ? service.units.filter(Boolean) : [];
+    if (units.length) {
+      for (const unit of units) {
+        const quantity = Number(unit.quantity ?? 1);
+        const amount = Number(unit.amount || 0);
+        const context = [unit.airconType, unit.brandName, unit.technology].filter(Boolean).join(", ");
+        const label = unit.problem ? ["Repair", context, unit.problem].filter(Boolean).join(" — ") : `${unit.airconType} ${unit.technology} ${unit.horsePower}HP`;
+        lines.push(`- ${label}  x${quantity} @ ${formatPeso(amount)} = ${formatPeso(amount * quantity)}`);
+      }
+    } else {
+      lines.push(`- ${service.Name}  ${formatPeso(service.Price)}`);
+    }
+  }
+  return lines;
+}
+
+function confirmationEmailText(booking) {
+  const serviceLines = confirmationServiceLines(Array.isArray(booking.services) ? booking.services : []);
+  const booked = serviceLines.length ? serviceLines.join("\n") : `- ${booking.service || "Service details"}`;
+  return `Hi ${booking.name},
+
+We've received your booking request (#${booking.requestId}). Here's what you booked:
+
+${booked}
+
+Preferred date/time: ${displayDate(booking.preferredDate)} at ${booking.preferredTime}
+Address: ${booking.address}
+
+Total: ${formatPeso(booking.totalAmount)}
+
+We'll notify you once it's approved.
+
+If you cancel after our technician has already arrived, a ₱450 fee applies.
+
+Thank you,
+GBP Electro-Mechanical Services`;
+}
+
+async function sendBookingConfirmationEmail(booking) {
+  const email = String(booking?.email || "").trim();
+  if (!email) { console.warn("Booking confirmation email skipped: no customer email."); return; }
+  const transport = createReminderTransport();
+  await transport.sendMail({ from: process.env.EMAIL_USER, to: email, subject: "Booking Request Received — GBP Electro-Mechanical Services", text: confirmationEmailText(booking) });
+}
+
 async function sendBookingReminder(booking, { getPool, sql, logger, baseUrl }) {
   const token = makeReminderToken();
   const expiresAt = appointmentExpiry(booking.preferredDate, booking.preferredTime);
@@ -74,4 +126,4 @@ function startReminderCron(deps) {
   cron.schedule("0 9 * * *", () => sendTomorrowReminders(deps).catch((error) => deps.logger.error({ err: error }, "Reminder cron failed")), { timezone: process.env.TZ || "Asia/Manila" });
 }
 
-module.exports = { appointmentExpiry, makeReminderToken, sendTomorrowReminders, startReminderCron };
+module.exports = { appointmentExpiry, makeReminderToken, sendTomorrowReminders, startReminderCron, sendBookingConfirmationEmail };

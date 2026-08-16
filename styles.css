@@ -1443,6 +1443,10 @@ html { scroll-behavior: smooth; }
 .booking-add-unit { width: 100%; border: 1px dashed #60a5fa; border-radius: .75rem; background: white; padding: .7rem; color: #0a47a3; font-weight: 800; cursor: pointer; }
 .booking-remove-unit { border: 0; background: transparent; color: #64748b; cursor: pointer; }
 .booking-unit-field--wide { grid-column: 1 / -1; }
+.booking-excess-toggle { display: flex; align-items: center; gap: .6rem; margin-top: .75rem; color: #0f172a; font-size: .85rem; font-weight: 700; cursor: pointer; }
+.booking-excess-toggle input { accent-color: #0a47a3; width: 1.05rem; height: 1.05rem; }
+.booking-unit-excess { margin-top: .6rem; max-width: 16rem; }
+.booking-unit-price--excess { color: #b45309; font-weight: 800; }
 .booking-repair-note { margin: .7rem 0 0; color: #64748b; font-size: .8rem; font-weight: 600; line-height: 1.5; }
 .booking-unit-block--repair .booking-unit-price { display: flex; align-items: center; flex-wrap: wrap; gap: .8rem; }
 .booking-checkup-info { padding: 0; border: 0; background: transparent; color: #0a47a3; font-size: .75rem; font-weight: 800; text-decoration: underline; cursor: pointer; }

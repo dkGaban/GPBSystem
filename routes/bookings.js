@@ -1,7 +1,8 @@
 const { isValidPhilippineMobile } = require("../utils/validation");
 const { isPastOrInvalidCalendarDate } = require("../utils/scheduling");
-const { appointmentExpiry } = require("../utils/reminders");
+const { appointmentExpiry, sendBookingConfirmationEmail } = require("../utils/reminders");
 const { matchServicePrice } = require("./services");
+const { matchExcessPipeRate } = require("./excess-pipe");
 
 module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError, validateServiceArea }) {
   async function findReminderBooking(token) {
@@ -75,7 +76,22 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
           if (!Number.isInteger(brandId) || brandId <= 0) { const error = new Error("A valid brand is required for each unit."); error.statusCode = 400; throw error; }
           const match = await matchServicePrice(pool, sql, service.Id, horsePower, technology, airconType);
           if (!match) { const error = new Error("Unable to match a price for one of the selected units."); error.statusCode = 400; throw error; }
-          preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount: Number(match.amount) });
+          let amount = Number(match.amount);
+          let excessNote = "";
+          const serviceType = String(service.Type || "").trim().toLowerCase();
+          if (serviceType === "installation" || serviceType === "re-location") {
+            const rawExcessFeet = unit.excessPipeFeet;
+            if (rawExcessFeet !== undefined && rawExcessFeet !== null && String(rawExcessFeet).trim() !== "") {
+              const excessFeet = Number(rawExcessFeet);
+              if (!Number.isInteger(excessFeet) || excessFeet <= 0) { const error = new Error("Excess pipe length must be a positive whole number."); error.statusCode = 400; throw error; }
+              const rateMatch = await matchExcessPipeRate(pool, sql, horsePower);
+              if (!rateMatch) { const error = new Error("Unable to verify the excess pipe rate for this unit."); error.statusCode = 400; throw error; }
+              const rate = Number(rateMatch.ratePerFoot);
+              amount = Number((amount + excessFeet * rate).toFixed(2));
+              excessNote = ` + ${excessFeet}ft excess pipe (₱${rate.toFixed(2)}/ft)`;
+            }
+          }
+          preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount, excessNote });
         }
         return { ...service, units: preparedUnits, total: preparedUnits.length ? preparedUnits.reduce((sum, unit) => sum + unit.amount * unit.quantity, 0) : Number(service.Price || 0) };
       }));
@@ -90,6 +106,16 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
           const customerResult = await transaction.request().input("Email", sql.NVarChar(150), String(email || req.user.email || "").trim()).query("SELECT TOP 1 CustomerID FROM tblCustomer WHERE LOWER(Email) = LOWER(@Email)");
           customerId = customerResult.recordset[0]?.CustomerID;
           if (!customerId) { const error = new Error("Customer profile could not be found for the submitted unit details."); error.statusCode = 400; throw error; }
+          const duplicateCheck = await transaction.request()
+            .input("CustomerID", sql.Int, customerId)
+            .input("ServiceName", sql.NVarChar(500), serviceLabel)
+            .input("Address", sql.NVarChar(255), address)
+            .query("SELECT TOP 1 RequestID AS id, CustomerName AS customer, Phone AS phone, Email AS email, ServiceName AS service, TotalAmount AS totalAmount, Address AS address, CONVERT(varchar(10), RequestDate, 23) AS preferredDate, RequestTime AS preferredTime, Status AS status FROM tblServiceRequest WHERE CustomerID = @CustomerID AND ServiceName = @ServiceName AND LOWER(Address) = LOWER(@Address) AND CreatedAt >= DATEADD(second, -60, GETDATE()) ORDER BY CreatedAt DESC");
+          const existingBooking = duplicateCheck.recordset[0];
+          if (existingBooking) {
+            try { await transaction.rollback(); } catch (_) { /* transaction may already be closed */ }
+            return res.status(200).json(existingBooking);
+          }
         }
         const result = await transaction.request()
         .input("CustomerName", sql.NVarChar(100), customer).input("Phone", sql.NVarChar(50), phone || "")
@@ -97,7 +123,8 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
         .input("TotalAmount", sql.Decimal(10, 2), serviceTotal).input("Address", sql.NVarChar(255), address)
         .input("RequestDate", sql.Date, preferredDate).input("RequestTime", sql.NVarChar(50), preferredTime || "")
         .input("Latitude", sql.Decimal(9, 6), Number(latitude)).input("Longitude", sql.Decimal(9, 6), Number(longitude))
-        .query("INSERT INTO tblServiceRequest (CustomerName, Phone, Email, ServiceName, TotalAmount, Address, RequestDate, RequestTime, Latitude, Longitude, Status) OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.Phone AS phone, INSERTED.Email AS email, INSERTED.ServiceName AS service, INSERTED.TotalAmount AS totalAmount, INSERTED.Address AS address, CONVERT(varchar(10), INSERTED.RequestDate, 23) AS preferredDate, INSERTED.RequestTime AS preferredTime, INSERTED.Status AS status VALUES (@CustomerName, @Phone, @Email, @ServiceName, @TotalAmount, @Address, @RequestDate, @RequestTime, @Latitude, @Longitude, 'Pending')");
+        .input("CustomerID", sql.Int, customerId)
+        .query("INSERT INTO tblServiceRequest (CustomerName, Phone, Email, CustomerID, ServiceName, TotalAmount, Address, RequestDate, RequestTime, Latitude, Longitude, Status) OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.Phone AS phone, INSERTED.Email AS email, INSERTED.ServiceName AS service, INSERTED.TotalAmount AS totalAmount, INSERTED.Address AS address, CONVERT(varchar(10), INSERTED.RequestDate, 23) AS preferredDate, INSERTED.RequestTime AS preferredTime, INSERTED.Status AS status VALUES (@CustomerName, @Phone, @Email, @CustomerID, @ServiceName, @TotalAmount, @Address, @RequestDate, @RequestTime, @Latitude, @Longitude, 'Pending')");
         const requestId = result.recordset[0].id;
         for (const serviceItem of pricedServices) {
           for (const unit of serviceItem.units) {
@@ -108,7 +135,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
               .query("INSERT INTO tblCustomerUnit (CustomerID, BrandID, AirconType, Technology, HorsePower) OUTPUT INSERTED.CUnitID AS id VALUES (@CustomerID, @BrandID, @AirconType, @Technology, @HorsePower)");
             const cUnitId = customerUnit.recordset[0].id;
             const repairContext = [unit.airconType, unit.brandName, unit.technology].filter(Boolean).join(", ");
-            const description = unit.problem ? ["Repair", repairContext, unit.problem].filter(Boolean).join(" \\u2014 ") : `${unit.airconType} ${unit.technology} ${unit.horsePower}HP`;
+            const description = unit.problem ? ["Repair", repairContext, unit.problem].filter(Boolean).join(" \\u2014 ") : `${unit.airconType} ${unit.technology} ${unit.horsePower}HP${unit.excessNote || ""}`;
             await transaction.request().input("RequestID", sql.Int, requestId).input("CUnitID", sql.Int, cUnitId)
               .input("Quantity", sql.Int, unit.quantity).input("Description", sql.NVarChar(500), description)
               .input("UPrice", sql.Decimal(10, 2), unit.amount).input("SubTotal", sql.Decimal(10, 2), unit.amount * unit.quantity)
@@ -117,6 +144,11 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
         }
         await transaction.commit();
         await logAction(`Created booking for ${customer}`, actorName(req), "tblServiceRequest", requestId);
+        try {
+          await sendBookingConfirmationEmail({ name: customer, email: String(email || "").trim(), services: pricedServices, preferredDate, preferredTime, address, totalAmount: serviceTotal, requestId });
+        } catch (emailError) {
+          console.warn("Booking confirmation email failed:", emailError);
+        }
         res.status(201).json(result.recordset[0]);
       } catch (error) {
         try { await transaction.rollback(); } catch (_) { /* transaction may already be closed */ }

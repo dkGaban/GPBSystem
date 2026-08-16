@@ -100,6 +100,11 @@ export function matchServicePrice(serviceId, hPower, unitType, airconType) {
   return requestJson(`/api/services/${serviceId}/price-match?${params.toString()}`);
 }
 
+export function getExcessPipeRate(hPower) {
+  const params = new URLSearchParams({ hPower: String(hPower) });
+  return requestJson(`/api/excess-pipe/match?${params.toString()}`);
+}
+
 export function createService(service) {
   return requestJson("/api/services", {
     method: "POST",
@@ -201,7 +206,17 @@ export function createBooking(booking) {
     name: service.name,
     price: service.price,
     ...(Array.isArray(service.units) && service.units.length ? {
-      units: service.units.map((unit) => ({ airconType: unit.airconType, brandId: Number(unit.brandId), technology: unit.technology, horsePower: Number(unit.horsePower), quantity: Number(unit.quantity), ...(unit.problem ? { problem: unit.problem } : {}) }))
+      units: service.units.map((unit) => {
+        const base = { airconType: unit.airconType, brandId: Number(unit.brandId), technology: unit.technology, horsePower: Number(unit.horsePower), quantity: Number(unit.quantity) };
+        if (unit.problem) base.problem = unit.problem;
+        if (unit.needsExcessPipe) {
+          base.needsExcessPipe = true;
+          base.excessPipeFeet = Number(unit.excessPipeFeet) || 0;
+          base.excessPipeRate = Number(unit.excessPipeRate) || 0;
+          base.excessPipeCost = Number(unit.excessPipeCost) || 0;
+        }
+        return base;
+      })
     } : {})
   })) };
   return requestJson("/api/bookings", {

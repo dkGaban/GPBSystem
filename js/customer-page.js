@@ -1,4 +1,4 @@
-import { cancelBooking, changePassword, createBooking, getBookings, getBrands, getCustomers, getProducts, getServices, matchServicePrice, updateCustomer } from "./api.js";
+import { cancelBooking, changePassword, createBooking, getBookings, getBrands, getCustomers, getProducts, getServices, getExcessPipeRate, matchServicePrice, updateCustomer } from "./api.js";
 import { bindTabs, escapeHtml, isValidPhilippineMobile, logout, peso, renderProducts, renderServiceCards, requireRole, showTab, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("customer");
@@ -8,6 +8,7 @@ let bookings = [];
 let profile = null;
 let brands = [];
 const priceTimers = new WeakMap();
+const excessTimers = new WeakMap();
 const timeSlots = ["6:00 AM – 8:00 AM", "8:00 AM – 11:00 AM", "1:00 PM – 3:00 PM", "3:00 PM – 5:00 PM"];
 const repairProblems = ["Does not start or stop", "Not cooling or fan blowing warm or hot air", "Fan is not blowing air at all", "Making noise", "Leaking water", "Coils freezing", "Error code displayed on panel", "Other", "I don't know"];
 const repairProblemNotes = {
@@ -23,10 +24,12 @@ const repairProblemNotes = {
 };
 const checkupFeeNotes = ["₱450 is due if you decline the repair after diagnosis.", "Typical repairs range from ₱500 to ₱15,000+ depending on the issue.", "Parts and permits, if required, are quoted separately."];
 function isRepairService(service) { return String(service?.type || "").trim().toLowerCase() === "repair"; }
+function isExcessPipeService(service) { const type = String(service?.type || "").trim().toLowerCase(); return type === "installation" || type === "re-location"; }
 function unitSummaryLabel(unit) {
-  return unit.problem
+  const base = unit.problem
     ? `Repair: ${unit.problem} x ${unit.quantity || 1}`
     : `${unit.airconType || "Unit"} ${unit.technology || ""} ${unit.horsePower || ""}HP x ${unit.quantity || 1}`;
+  return unit.needsExcessPipe && unit.excessPipeFeet > 0 ? `${base} + ${unit.excessPipeFeet}ft excess pipe` : base;
 }
 const $ = (id) => document.getElementById(id);
 const serviceAreaCities = new Set(["san fernando", "naga", "minglanilla", "talisay", "talisay city", "cebu", "cebu city", "mandaue", "mandaue city", "consolacion", "liloan", "compostela", "danao", "danao city"]);
@@ -141,7 +144,7 @@ function render() {
   document.getElementById("bookingsBody").innerHTML = rows;
   renderServiceCards(services, { customer: true });
   $("bookingServices").innerHTML = bookingServiceCategories(services);
-  $("bookingTimeSlots").innerHTML = timeSlots.map((slot, index) => `<label class="time-slot"><input type="radio" name="bookingTime" value="${slot}" ${index === 0 ? "required" : ""}/><span>${slot}</span></label>`).join("");
+  $("bookingTimeSlots").innerHTML = timeSlots.map((slot) => `<label class="time-slot"><input type="radio" name="bookingTime" value="${slot}" /><span>${slot}</span></label>`).join("");
   renderProducts(products, { customer: true });
   if (profile) { $("profileName").value = profile.name || ""; $("profileEmail").value = profile.email || ""; $("profilePhone").value = profile.phone || ""; $("profileAddress").value = profile.address || ""; $("profileCity").value = profile.city || ""; }
   updateBookingTotal();
@@ -154,6 +157,9 @@ function fillCustomerDefaults() {
 async function saveBooking(event) {
   event.preventDefault();
   if (!validateBookingStep(1) || !validateBookingStep(2) || !validateBookingStep(3)) return;
+  const submitButton = $("bookingSubmitButton");
+  if (submitButton?.disabled) return;
+  if (submitButton) submitButton.disabled = true;
   try {
     await createBooking({
       customer: profile?.name || session.user.fullName,
@@ -179,6 +185,8 @@ async function saveBooking(event) {
       $("bookingDateError").classList.remove("hidden");
     }
     toast(error.message);
+  } finally {
+    if (submitButton) submitButton.disabled = false;
   }
 }
 
@@ -279,9 +287,56 @@ function setBookingStep(nextStep) {
 }
 
 function validateBookingStep(step) {
-  if (step === 1 && !selectedServices().length) {
-    toast("Select at least one service to continue.");
-    return false;
+  if (step === 1) {
+    const selected = selectedServices();
+    if (!selected.length) {
+      toast("Select at least one service to continue.");
+      return false;
+    }
+    const errors = [];
+    let firstInvalidBlock = null;
+    document.querySelectorAll("#bookingServices .booking-service-card").forEach((card) => {
+      const toggle = card.querySelector("[data-service-unit-toggle]");
+      if (!toggle || !toggle.checked) return;
+      const service = services.find((item) => String(item.id) === String(card.dataset.serviceId));
+      if (!service) return;
+      [...card.querySelectorAll(".booking-unit-block")].forEach((block, index) => {
+        const value = (field) => block.querySelector(`[data-unit-field="${field}"]`)?.value || "";
+        const missing = [];
+        let pricePending = false;
+        if (isRepairService(service)) {
+          if (!value("problem")) missing.push("unit problem");
+        } else {
+          if (!value("airconType")) missing.push("aircon type");
+          if (!value("brandId")) missing.push("brand");
+          if (!value("technology")) missing.push("technology");
+          const hp = value("horsePower");
+          if (!hp || !Number.isFinite(Number(hp)) || Number(hp) <= 0) missing.push("cooling size (HP)");
+          if (block.dataset.priceReady !== "true") pricePending = true;
+        }
+        const quantity = Number(block.querySelector('input[data-unit-field="quantity"]')?.value || 1);
+        if (!Number.isInteger(quantity) || quantity < 1) missing.push("quantity");
+        const needsExcess = Boolean(block.querySelector('[data-unit-field="needsExcessPipe"]')?.checked);
+        if (needsExcess) {
+          const feet = Number(value("excessPipeFeet"));
+          if (!Number.isInteger(feet) || feet <= 0) missing.push("excess pipe length");
+        }
+        if (missing.length || pricePending) {
+          const unitLabel = `Aircon unit ${index + 1} (${service.name})`;
+          const details = [];
+          if (missing.length) details.push(`missing ${missing.join(", ")}`);
+          if (pricePending) details.push("still loading its matched price");
+          errors.push(`${unitLabel} is ${details.join(" and ")}.`);
+          if (!firstInvalidBlock) firstInvalidBlock = block;
+        }
+      });
+    });
+    if (errors.length) {
+      firstInvalidBlock?.scrollIntoView({ behavior: "smooth", block: "center" });
+      const remaining = errors.length - 1;
+      toast(remaining > 0 ? `${errors[0]} (${remaining} more unit ${remaining > 1 ? "issues" : "issue"} need attention.)` : errors[0]);
+      return false;
+    }
   }
   if (step === 2) {
     const validDate = validateBookingDate();
@@ -459,9 +514,11 @@ function selectedServices() {
         if (isRepairService(service)) {
           return { airconType: value("airconType"), brandId: Number(value("brandId")) || null, technology: value("technology"), problem: value("problem"), quantity, price: Number(service.price || 0), priceReady: true };
         }
-        return { airconType: value("airconType"), brandId: Number(value("brandId")), technology: value("technology"), horsePower: Number(value("horsePower")), quantity, price: Number(block.dataset.matchedPrice || 0), priceReady: block.dataset.priceReady === "true" };
+        const excessChecked = Boolean(block.querySelector('[data-unit-field="needsExcessPipe"]')?.checked);
+        const excessFeet = Number(block.querySelector('[data-unit-field="excessPipeFeet"]')?.value || 0);
+        return { airconType: value("airconType"), brandId: Number(value("brandId")), technology: value("technology"), horsePower: Number(value("horsePower")), quantity, price: Number(block.dataset.matchedPrice || 0), priceReady: block.dataset.priceReady === "true", needsExcessPipe: excessChecked, excessPipeFeet: excessChecked && Number.isFinite(excessFeet) && excessFeet > 0 ? Math.floor(excessFeet) : 0, excessPipeRate: excessChecked ? Number(block.dataset.excessRate || 0) : 0, excessPipeCost: excessChecked ? Number(block.dataset.excessCost || 0) : 0 };
       });
-      return [{ id: Number(service.id), name: service.name, category: service.type, type: service.type, units, price: units.reduce((sum, unit) => sum + unit.price * unit.quantity, 0) }];
+      return [{ id: Number(service.id), name: service.name, category: service.type, type: service.type, units, price: units.reduce((sum, unit) => sum + unit.price * unit.quantity + (unit.excessPipeCost || 0), 0) }];
     }
     return [];
   });
@@ -496,19 +553,21 @@ function bookingServiceChoice(service) {
 function unitBlockMarkup(service, index) {
   if (isRepairService(service)) return repairUnitBlockMarkup(service, index);
   const options = brands.map((brand) => `<option value="${brand.id}">${escapeHtml(brand.name)}</option>`).join("");
-  return `<div class="booking-unit-block"><div class="booking-unit-block-header"><strong>Aircon unit ${index + 1}</strong>${index ? `<button type="button" class="booking-remove-unit" data-remove-unit>Remove</button>` : ""}</div><div class="booking-unit-grid"><label class="booking-unit-field"><span>Aircon type</span><select data-unit-field="airconType"><option value="">Select type</option><option>Window</option><option>Split</option><option>Tower</option><option>U-shaped Window</option></select></label><label class="booking-unit-field"><span>Brand</span><select data-unit-field="brandId"><option value="">Select brand</option>${options}</select></label><label class="booking-unit-field"><span>Technology</span><select data-unit-field="technology"><option value="">Select technology</option><option value="Inverter">Inverter</option><option value="Non-Inverter">Non-Inverter</option><option value="Unknown">I don't know</option></select></label><label class="booking-unit-field"><span>No. of units</span><span class="booking-stepper"><button type="button" data-unit-step="minus" data-unit-field="quantity">-</button><input type="number" min="1" step="1" value="1" data-unit-field="quantity"><button type="button" data-unit-step="plus" data-unit-field="quantity">+</button></span></label><label class="booking-unit-field"><span>Cooling size (HP)</span><select data-unit-field="horsePower"><option value="">Select HP</option><option value="0.5">0.5 HP</option><option value="0.6">0.6 HP</option><option value="0.75">0.75 HP</option><option value="0.8">0.8 HP</option><option value="1">1.0 HP</option><option value="1.5">1.5 HP</option><option value="2">2.0 HP</option><option value="2.5">2.5 HP</option><option value="3">3.0 HP</option><option value="4">4.0 HP</option><option value="5">5.0 HP</option><option value="unsure">Not sure</option></select></label></div><div class="booking-unit-price" data-unit-price>Complete details to see matched price</div></div>`;
+  return `<div class="booking-unit-block"><div class="booking-unit-block-header"><strong>Aircon unit ${index + 1}</strong>${index ? `<button type="button" class="booking-remove-unit" data-remove-unit>Remove</button>` : ""}</div><div class="booking-unit-grid"><label class="booking-unit-field"><span>Aircon type</span><select data-unit-field="airconType"><option value="">Select type</option><option>Window</option><option>Split</option><option>Tower</option><option>U-shaped Window</option></select></label><label class="booking-unit-field"><span>Brand</span><select data-unit-field="brandId"><option value="">Select brand</option>${options}</select></label><label class="booking-unit-field"><span>Technology</span><select data-unit-field="technology"><option value="">Select technology</option><option value="Inverter">Inverter</option><option value="Non-Inverter">Non-Inverter</option><option value="Unknown">I don't know</option></select></label><label class="booking-unit-field"><span>No. of units</span><span class="booking-stepper"><button type="button" data-unit-step="minus" data-unit-field="quantity">-</button><input type="number" min="1" step="1" value="1" data-unit-field="quantity"><button type="button" data-unit-step="plus" data-unit-field="quantity">+</button></span></label><label class="booking-unit-field"><span>Cooling size (HP)</span><select data-unit-field="horsePower"><option value="">Select HP</option><option value="0.5">0.5 HP</option><option value="0.6">0.6 HP</option><option value="0.75">0.75 HP</option><option value="0.8">0.8 HP</option><option value="1">1.0 HP</option><option value="1.5">1.5 HP</option><option value="2">2.0 HP</option><option value="2.5">2.5 HP</option><option value="3">3.0 HP</option><option value="4">4.0 HP</option><option value="5">5.0 HP</option><option value="unsure">Not sure</option></select></label></div><div class="booking-unit-price" data-unit-price>Complete details to see matched price</div>${isExcessPipeService(service) ? `<label class="booking-excess-toggle"><input type="checkbox" data-unit-field="needsExcessPipe" />This unit needs excess pipe</label><div class="booking-unit-excess hidden" data-excess-pipe><label class="booking-unit-field"><span>Additional pipe length (ft)</span><input type="number" min="1" step="1" placeholder="e.g. 20" data-unit-field="excessPipeFeet" /></label></div><div class="booking-unit-price booking-unit-price--excess hidden" data-excess-price></div>` : ""}</div>`;
 }
 
 function repairUnitBlockMarkup(service, index) {
   const options = brands.map((brand) => '<option value="' + brand.id + '">' + escapeHtml(brand.name) + '</option>').join("");
   const problemOptions = repairProblems.map((problem) => '<option value="' + escapeHtml(problem) + '">' + escapeHtml(problem) + '</option>').join("");
-  return '<div class="booking-unit-block booking-unit-block--repair"><div class="booking-unit-block-header"><strong>Aircon unit ' + (index + 1) + '</strong>' + (index ? '<button type="button" class="booking-remove-unit" data-remove-unit>Remove</button>' : '') + '</div><div class="booking-unit-grid"><label class="booking-unit-field"><span>Aircon type</span><select data-unit-field="airconType"><option value="">Select type</option><option>Window</option><option>Split</option><option>Tower</option><option>U-shaped Window</option></select></label><label class="booking-unit-field"><span>Brand</span><select data-unit-field="brandId"><option value="">Select brand</option>' + options + '</select></label><label class="booking-unit-field"><span>Technology</span><select data-unit-field="technology"><option value="">Select technology</option><option value="Inverter">Inverter</option><option value="Non-Inverter">Non-Inverter</option><option value="Unknown">I don\'t know</option></select></label><label class="booking-unit-field booking-unit-field--wide"><span>Unit problem</span><select data-unit-field="problem" required><option value="">Select the problem</option>' + problemOptions + '</select></label><label class="booking-unit-field booking-unit-field--wide"><span>No. of units</span><span class="booking-stepper"><button type="button" data-unit-step="minus" data-unit-field="quantity">-</button><input type="number" min="1" step="1" value="1" data-unit-field="quantity"><button type="button" data-unit-step="plus" data-unit-field="quantity">+</button></span></label></div><p class="booking-repair-note" data-repair-note>Select a problem to see an estimated repair range.</p><div class="booking-unit-price" data-unit-price>Check-up fee: ' + peso(service.price) + ' per unit<button type="button" class="booking-checkup-info" data-checkup-info>What\'s the check-up fee?</button></div></div>';
+  return '<div class="booking-unit-block booking-unit-block--repair"><div class="booking-unit-block-header"><strong>Aircon unit ' + (index + 1) + '</strong>' + (index ? '<button type="button" class="booking-remove-unit" data-remove-unit>Remove</button>' : '') + '</div><div class="booking-unit-grid"><label class="booking-unit-field"><span>Aircon type</span><select data-unit-field="airconType"><option value="">Select type</option><option>Window</option><option>Split</option><option>Tower</option><option>U-shaped Window</option></select></label><label class="booking-unit-field"><span>Brand</span><select data-unit-field="brandId"><option value="">Select brand</option>' + options + '</select></label><label class="booking-unit-field"><span>Technology</span><select data-unit-field="technology"><option value="">Select technology</option><option value="Inverter">Inverter</option><option value="Non-Inverter">Non-Inverter</option><option value="Unknown">I don\'t know</option></select></label><label class="booking-unit-field booking-unit-field--wide"><span>Unit problem</span><select data-unit-field="problem"><option value="">Select the problem</option>' + problemOptions + '</select></label><label class="booking-unit-field booking-unit-field--wide"><span>No. of units</span><span class="booking-stepper"><button type="button" data-unit-step="minus" data-unit-field="quantity">-</button><input type="number" min="1" step="1" value="1" data-unit-field="quantity"><button type="button" data-unit-step="plus" data-unit-field="quantity">+</button></span></label></div><p class="booking-repair-note" data-repair-note>Select a problem to see an estimated repair range.</p><div class="booking-unit-price" data-unit-price>Check-up fee: ' + peso(service.price) + ' per unit<button type="button" class="booking-checkup-info" data-checkup-info>What\'s the check-up fee?</button></div></div>';
 }
 
 function addUnitBlock(serviceId) { const container = document.querySelector(`[data-unit-blocks][data-service-id="${CSS.escape(String(serviceId))}"]`); if (!container) return; const index = container.querySelectorAll(".booking-unit-block").length; container.querySelector("[data-add-unit]")?.insertAdjacentHTML("beforebegin", unitBlockMarkup(services.find((item) => String(item.id) === String(serviceId)), index)); updateBookingTotal(); }
 function adjustUnitValue(button) { const input = button.closest(".booking-stepper")?.querySelector(`input[data-unit-field="${button.dataset.unitField}"]`); if (!input) return; const step = Number(input.step) || 1; const minimum = Number(input.min) || 0; input.value = String(Math.max(minimum, Number((Number(input.value || minimum) + (button.dataset.unitStep === "plus" ? step : -step)).toFixed(2)))); input.dispatchEvent(new Event("input", { bubbles: true })); }
-function handleBookingServiceChange(event) { if (event.target.matches("[data-service-unit-toggle]")) event.target.closest(".booking-service-card").querySelector("[data-unit-blocks]")?.classList.toggle("hidden", !event.target.checked); if (event.target.matches('[data-unit-field="problem"]')) { const note = event.target.closest(".booking-unit-block")?.querySelector("[data-repair-note]"); if (note) note.textContent = repairProblemNotes[event.target.value] || "Select a problem to see an estimated repair range."; } if (event.target.matches("[data-unit-field]")) updateUnitPriceDebounced(event.target.closest(".booking-unit-block")); updateBookingTotal(); }
+function handleBookingServiceChange(event) { if (event.target.matches("[data-service-unit-toggle]")) event.target.closest(".booking-service-card").querySelector("[data-unit-blocks]")?.classList.toggle("hidden", !event.target.checked); if (event.target.matches('[data-unit-field="problem"]')) { const note = event.target.closest(".booking-unit-block")?.querySelector("[data-repair-note]"); if (note) note.textContent = repairProblemNotes[event.target.value] || "Select a problem to see an estimated repair range."; } const block = event.target.closest(".booking-unit-block"); if (event.target.matches('[data-unit-field="needsExcessPipe"]')) { block?.querySelector("[data-excess-pipe]")?.classList.toggle("hidden", !event.target.checked); updateExcessPipeDebounced(block); } else if (event.target.matches('[data-unit-field="excessPipeFeet"]')) { updateExcessPipeDebounced(block); } else if (event.target.matches("[data-unit-field]")) { updateUnitPriceDebounced(block); updateExcessPipeDebounced(block); } updateBookingTotal(); }
 function updateUnitPriceDebounced(block) { if (!block) return; const card = block.closest(".booking-service-card"); const service = services.find((item) => String(item.id) === String(card?.dataset.serviceId)); if (isRepairService(service)) { updateBookingTotal(); return; } clearTimeout(priceTimers.get(block)); block.dataset.priceReady = "false"; delete block.dataset.matchedPrice; const timer = setTimeout(async () => { const hpValue = block.querySelector('[data-unit-field="horsePower"]')?.value || ""; const hp = Number(hpValue); const technology = block.querySelector('[data-unit-field="technology"]')?.value; const airconType = block.querySelector('[data-unit-field="airconType"]')?.value; const output = block.querySelector("[data-unit-price]"); if (hpValue === "unsure") { output.textContent = "Please select your aircon's HP to see the price, or ask our technician to confirm on-site"; updateBookingTotal(); return; } if (!Number.isFinite(hp) || hp <= 0 || !technology) { output.textContent = "Complete details to see matched price"; updateBookingTotal(); return; } output.textContent = "Checking matched price..."; try { const result = await matchServicePrice(Number(card.dataset.serviceId), hp, technology, airconType); block.dataset.matchedPrice = String(result.amount); block.dataset.priceReady = "true"; output.textContent = `Matched price: ${peso(result.amount)} per unit`; } catch (error) { output.textContent = error.message; } updateBookingTotal(); }, 300); priceTimers.set(block, timer); }
+function updateExcessPipeDebounced(block) { if (!block) return; clearTimeout(excessTimers.get(block)); const timer = setTimeout(() => updateExcessPipePrice(block), 250); excessTimers.set(block, timer); }
+async function updateExcessPipePrice(block) { if (!block) return; const card = block.closest(".booking-service-card"); const service = services.find((item) => String(item.id) === String(card?.dataset.serviceId)); const checkbox = block.querySelector('[data-unit-field="needsExcessPipe"]'); const feetInput = block.querySelector('[data-unit-field="excessPipeFeet"]'); const hpInput = block.querySelector('[data-unit-field="horsePower"]'); const quantityInput = block.querySelector('input[data-unit-field="quantity"]'); const output = block.querySelector("[data-excess-price]"); if (!isExcessPipeService(service) || !checkbox || !feetInput || !hpInput || !output) return; block.dataset.excessCost = ""; delete block.dataset.excessRate; if (!checkbox.checked) { output.textContent = ""; output.classList.add("hidden"); updateBookingTotal(); return; } output.classList.remove("hidden"); const hpValue = hpInput.value || ""; const hp = Number(hpValue); const feet = Number(feetInput.value || 0); if (hpValue === "unsure" || !Number.isFinite(hp) || hp <= 0) { output.textContent = "Select the unit's HP to see the excess pipe rate."; updateBookingTotal(); return; } if (!Number.isFinite(feet) || feet <= 0) { output.textContent = "Enter the extra pipe length in feet."; updateBookingTotal(); return; } output.textContent = "Checking excess pipe rate..."; try { const result = await getExcessPipeRate(hp); const rate = Number(result.ratePerFoot); const perUnit = Number((feet * rate).toFixed(2)); const quantity = Number(quantityInput?.value || 1); block.dataset.excessRate = String(rate); block.dataset.excessCost = String(Number((perUnit * quantity).toFixed(2))); output.textContent = `+ ${peso(perUnit)} excess pipe (${feet}ft × ${peso(rate)}/ft)`; } catch (error) { output.textContent = error.message; } updateBookingTotal(); }
 
 function openCheckupFeeModal(service) {
   const includedItems = String(service.inclusion || "").split(/,|\r?\n/).map((item) => item.trim()).filter(Boolean);

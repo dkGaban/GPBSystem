@@ -829,11 +829,15 @@ html { scroll-behavior: smooth; }
 .booking-review-card > div:first-child { border-top: 0; }
 .booking-review-card > div > span { color: #64748b; font-size: 10px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .booking-review-card strong { color: #1e293b; font-size: 13px; line-height: 1.45; }
-.booking-review-service { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; color: #334155; font-size: 13px; }
+.booking-review-service { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px; color: #334155; font-size: 13px; }
 .booking-review-service + .booking-review-service { margin-top: 7px; }
 .booking-review-service small, .booking-summary-item small { display: block; margin-top: 2px; color: #64748b; font-size: 10px; }
 .booking-review-service strong { color: #0a47a3; font-size: 13px; white-space: nowrap; }
 .booking-review-muted, .booking-summary-empty { color: #94a3b8; font-size: 12px; }
+.booking-review-inclusion { flex-basis: 100%; }
+.booking-review-inclusion ul { display: grid; gap: 3px; margin: 6px 0 0; padding: 0; list-style: none; }
+.booking-review-inclusion li { position: relative; padding-left: 14px; color: #94a3b8; font-size: 11px; line-height: 1.45; }
+.booking-review-inclusion li::before { position: absolute; left: 0; content: "•"; color: #94a3b8; }
 .booking-fee-notice { margin: 16px 0 0; border: 1px solid #bae6fd; border-radius: 10px; background: #f0f9ff; padding: 11px 13px; color: #075985; font-size: 11px; line-height: 1.5; }
 .booking-flow-navigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #eef2f7; padding-top: 18px; }
 .booking-summary { position: sticky; top: 22px; display: grid; gap: 18px; border: 1px solid #cfe4f7; border-radius: 18px; background: linear-gradient(180deg, #f8fcff, #fff); padding: 20px; box-shadow: 0 14px 30px rgba(10, 71, 163, .09); }

@@ -1,9 +1,29 @@
 import { els, getApprovedCustomers, state } from "./state.js";
-import { escapeHtml, refreshIcons, statusBadge } from "./utils.js";
+import { escapeHtml, formatPesoPrice, refreshIcons, statusBadge } from "./utils.js";
+import { renderUnitPhotosMarkup } from "./portal-utils.js";
 
 export function openBookingModal(id) {
   const booking = state.bookings.find((item) => item.id === id);
   if (!booking) return;
+
+  const units = Array.isArray(booking.units) && booking.units.length ? booking.units : [];
+  const unitsSection = units.length
+    ? `
+      <div class="border-t border-slate-200 pt-4 mt-4">
+        <h4 class="font-bold text-slate-500 mb-3">Units</h4>
+        ${units.map((unit) => `
+          <div class="mb-4">
+            <p class="font-semibold text-slate-700">${escapeHtml(unit.description || "Unit")}</p>
+            <dl class="grid grid-cols-[140px_1fr] gap-x-4 gap-y-1 text-sm mt-1">
+              <dt class="font-bold text-slate-500">Quantity</dt><dd>${escapeHtml(unit.quantity)}</dd>
+              ${unit.uPrice != null ? `<dt class="font-bold text-slate-500">Unit price</dt><dd>${formatPesoPrice(unit.uPrice)}</dd>` : ""}
+              ${unit.subTotal != null ? `<dt class="font-bold text-slate-500">Subtotal</dt><dd>${formatPesoPrice(unit.subTotal)}</dd>` : ""}
+            </dl>
+            ${renderUnitPhotosMarkup([unit])}
+          </div>
+        `).join("")}
+      </div>`
+    : "";
 
   els.bookingModalContent.innerHTML = `
     <dl class="grid grid-cols-[140px_1fr] gap-x-4 gap-y-3">
@@ -15,6 +35,7 @@ export function openBookingModal(id) {
       <dt class="font-bold text-slate-500">Technician</dt><dd>${escapeHtml(booking.technician || "Unassigned")}</dd>
       <dt class="font-bold text-slate-500">Status</dt><dd>${statusBadge(booking.status)}</dd>
     </dl>
+    ${unitsSection}
   `;
   openModal("bookingModal");
 }

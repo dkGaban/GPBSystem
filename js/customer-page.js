@@ -540,6 +540,11 @@ function bookingInfo(label, value, status) {
   return items.length ? `<section class="booking-service-info booking-service-info--${status}"><h3>${label}</h3><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></section>` : "";
 }
 
+function bookingInclusionMarkup(value) {
+  const items = String(value || "").split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
+  return items.length ? `<div class="booking-review-inclusion"><ul>${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>` : "";
+}
+
 // Per-unit pricing controls for tiered services.
 const BOOKING_PHOTO_MAX_COUNT = 3;
 const BOOKING_PHOTO_MAX_SIZE_MB = 8;
@@ -649,7 +654,7 @@ function updateBookingTotal() {
 function updateBookingReview() {
   if (!$('bookingReviewServices')) return;
   const selected = selectedServices();
-  $('bookingReviewServices').innerHTML = selected.length ? selected.map((service) => `<div class="booking-review-service"><span>${escapeHtml(service.name)}${service.units ? service.units.map((unit) => `<small>${escapeHtml(unitSummaryLabel(unit))}</small>`).join("") : ""}</span><strong>${peso(service.price)}</strong></div>`).join("") : `<span class="booking-review-muted">No services selected.</span>`;
+  $('bookingReviewServices').innerHTML = selected.length ? selected.map((service) => `<div class="booking-review-service"><span>${escapeHtml(service.name)}${service.units ? service.units.map((unit) => `<small>${escapeHtml(unitSummaryLabel(unit))}</small>`).join("") : ""}</span><strong>${peso(service.price)}</strong>${bookingInclusionMarkup(services.find((item) => String(item.id) === String(service.id))?.inclusion)}</div>`).join("") : `<span class="booking-review-muted">No services selected.</span>`;
   $('bookingReviewSchedule').textContent = [$('bookingDate').value, document.querySelector('input[name="bookingTime"]:checked')?.value].filter(Boolean).join(" Â· ") || "Not selected";
   $('bookingReviewAddress').textContent = $('bookingAddress').value.trim() || "Not selected";
   $('bookingReviewLocation').textContent = $('bookingCity').value ? `${$('bookingCity').value} Â· ${$('bookingLatitude').value}, ${$('bookingLongitude').value}` : "Not selected";

@@ -1431,9 +1431,9 @@ html { scroll-behavior: smooth; }
 .booking-unit-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
 .booking-unit-field { display: grid; gap: .35rem; color: #334155; font-size: .8rem; font-weight: 700; }
 .booking-unit-field select, .booking-unit-field input { width: 100%; min-height: 2.5rem; border: 1px solid #cbd5e1; border-radius: .65rem; background: white; padding: .5rem .65rem; color: #0f172a; }
-.booking-stepper { display: grid; grid-template-columns: 2rem 1fr 2rem; align-items: center; border: 1px solid #cbd5e1; border-radius: .65rem; background: white; overflow: hidden; }
+.booking-stepper { display: grid; grid-template-columns: 2.25rem 1fr 2.25rem; align-items: center; border: 1px solid #cbd5e1; border-radius: .65rem; background: white; overflow: hidden; min-width: 7rem; }
 .booking-stepper button { border: 0; background: #eff6ff; color: #0a47a3; height: 2.5rem; font-weight: 800; cursor: pointer; }
-.booking-stepper input { border: 0; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 0; text-align: center; width: 100%; font-size: 1rem; font-weight: 600; color: #0f172a; -moz-appearance: textfield; }
+.booking-stepper input { border: 0; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; border-radius: 0; text-align: center; width: 100%; min-width: 2.5rem; font-size: 1.05rem; font-weight: 600; color: #0f172a; -moz-appearance: textfield; }
 .booking-stepper input::-webkit-outer-spin-button,
 .booking-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .booking-unit-price { margin-top: .8rem; color: #0a47a3; font-size: .9rem; font-weight: 800; }
@@ -1462,3 +1462,32 @@ html { scroll-behavior: smooth; }
 .checkup-fee-notes li::before { color: #94a3b8; content: "•"; }
 @media (max-width: 720px) { .booking-unit-grid { grid-template-columns: 1fr; } }
 @media (max-width: 540px) { .booking-address-control { display: grid; } }
+
+/* Customer booking photos (optional step 2) */
+.booking-step-optional { display: inline; margin-left: 2px; color: #94a3b8; font-size: 10px; font-weight: 600; }
+.booking-photos { display: grid; gap: 14px; }
+.booking-photos-empty { margin: 0; color: #64748b; font-size: 13px; font-weight: 600; }
+.booking-photo-card { display: grid; gap: 12px; border: 1px solid #dbe7f4; border-radius: 14px; background: linear-gradient(180deg, #fff, #fbfdff); padding: 16px; }
+.booking-photo-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.booking-photo-card-header > div { display: grid; gap: 3px; }
+.booking-photo-card-header strong { color: #0f2d58; font-size: 15px; font-weight: 900; }
+.booking-photo-card-header span { color: #64748b; font-size: 12px; font-weight: 700; }
+.booking-photo-card-header b { color: #0a47a3; font-size: 12px; font-weight: 900; }
+.booking-photo-dropzone { display: grid; place-items: center; gap: 4px; border: 1.5px dashed #93c5fd; border-radius: 12px; background: #f8fbff; padding: 22px 16px; text-align: center; cursor: pointer; transition: border-color 160ms ease, background 160ms ease; }
+.booking-photo-dropzone:hover, .booking-photo-dropzone.is-dragging { border-color: #0a47a3; background: #eef5ff; }
+.booking-photo-dropzone span { color: #0a47a3; font-size: 13px; font-weight: 800; }
+.booking-photo-dropzone small { color: #94a3b8; font-size: 11px; font-weight: 600; }
+.booking-photo-previews { display: flex; flex-wrap: wrap; gap: 10px; }
+.booking-photo-thumb { position: relative; display: grid; margin: 0; }
+.booking-photo-thumb img { width: 84px; height: 84px; object-fit: cover; border: 1px solid #dbe7f4; border-radius: 10px; background: #e2e8f0; }
+.booking-photo-remove { position: absolute; top: -8px; right: -8px; display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 50%; background: #ef4444; color: #fff; font-size: 14px; font-weight: 900; line-height: 1; cursor: pointer; box-shadow: 0 2px 6px rgba(15, 23, 42, .2); }
+.booking-photo-remove:hover { background: #dc2626; }
+
+/* Unit photo thumbnails in admin / technician views */
+.unit-photo-list { display: grid; gap: 6px; margin-top: 8px; }
+.unit-photo-list-item { display: grid; gap: 4px; }
+.unit-photo-list-item small { color: #64748b; font-size: 11px; font-weight: 700; }
+.unit-photo-thumbs { display: flex; flex-wrap: wrap; gap: 6px; }
+.unit-photo-link { display: grid; }
+.unit-photo-link img { width: 44px; height: 44px; object-fit: cover; border: 1px solid #dbe7f4; border-radius: 8px; background: #e2e8f0; }
+.unit-photo-link:hover img { border-color: #0a47a3; }

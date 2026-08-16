@@ -118,14 +118,53 @@ async function init() {
       return;
     }
     const addUnit = event.target.closest("[data-add-unit]");
-    if (addUnit) { event.preventDefault(); addUnitBlock(addUnit.dataset.addUnit); return; }
+    if (addUnit) { event.preventDefault(); addUnitBlock(addUnit.dataset.addUnit); if (bookingStep === 2) renderPhotoStep(); return; }
     const removeUnit = event.target.closest("[data-remove-unit]");
-    if (removeUnit) { event.preventDefault(); removeUnit.closest(".booking-unit-block")?.remove(); updateBookingTotal(); return; }
+    if (removeUnit) { event.preventDefault(); removeUnit.closest(".booking-unit-block")?.remove(); updateBookingTotal(); if (bookingStep === 2) renderPhotoStep(); return; }
     const stepper = event.target.closest("[data-unit-step]");
     if (stepper) { event.preventDefault(); adjustUnitValue(stepper); return; }
   });
   $("bookingServices").addEventListener("change", handleBookingServiceChange);
   $("bookingServices").addEventListener("input", handleBookingServiceChange);
+  $("bookingPhotos").addEventListener("click", (event) => {
+    const removeButton = event.target.closest("[data-photo-remove]");
+    if (removeButton) {
+      event.preventDefault();
+      const cardIndex = Number(removeButton.dataset.photoCard);
+      const photoIndex = Number(removeButton.dataset.photoIndex);
+      const card = bookingPhotoCards[cardIndex];
+      if (!card) return;
+      const photos = parseStoredPhotos(card.block);
+      photos.splice(photoIndex, 1);
+      card.block.dataset.photos = JSON.stringify(photos);
+      renderPhotoStep();
+    }
+  });
+  $("bookingPhotos").addEventListener("change", (event) => {
+    const input = event.target.closest('input[type="file"]');
+    if (!input) return;
+    const cardIndex = Number(input.closest("[data-photo-dropzone]")?.dataset.photoDropzone);
+    if (Number.isFinite(cardIndex)) addBookingPhotos(cardIndex, input.files);
+    input.value = "";
+  });
+  ["dragenter", "dragover"].forEach((type) => $("bookingPhotos").addEventListener(type, (event) => {
+    const dropzone = event.target.closest("[data-photo-dropzone]");
+    if (!dropzone) return;
+    event.preventDefault();
+    dropzone.classList.add("is-dragging");
+  }));
+  $("bookingPhotos").addEventListener("dragleave", (event) => {
+    const dropzone = event.target.closest("[data-photo-dropzone]");
+    if (dropzone) dropzone.classList.remove("is-dragging");
+  });
+  $("bookingPhotos").addEventListener("drop", (event) => {
+    const dropzone = event.target.closest("[data-photo-dropzone]");
+    if (!dropzone) return;
+    event.preventDefault();
+    dropzone.classList.remove("is-dragging");
+    const cardIndex = Number(dropzone.dataset.photoDropzone);
+    if (Number.isFinite(cardIndex)) addBookingPhotos(cardIndex, event.dataTransfer?.files);
+  });
   $("profilePhone").addEventListener("input", () => validatePhoneField("profilePhone", "profilePhoneError"));
   await loadAll();
   fillCustomerDefaults();
@@ -156,7 +195,7 @@ function fillCustomerDefaults() {
 
 async function saveBooking(event) {
   event.preventDefault();
-  if (!validateBookingStep(1) || !validateBookingStep(2) || !validateBookingStep(3)) return;
+  if (!validateBookingStep(1) || !validateBookingStep(3) || !validateBookingStep(4)) return;
   const submitButton = $("bookingSubmitButton");
   if (submitButton?.disabled) return;
   if (submitButton) submitButton.disabled = true;
@@ -260,7 +299,7 @@ function initBookingMap() {
 }
 
 function setBookingStep(nextStep) {
-  const target = Math.max(1, Math.min(4, Number(nextStep) || 1));
+  const target = Math.max(1, Math.min(5, Number(nextStep) || 1));
   if (target > bookingStep) {
     for (let step = bookingStep; step < target; step += 1) {
       if (!validateBookingStep(step)) return;
@@ -275,12 +314,13 @@ function setBookingStep(nextStep) {
     button.setAttribute("aria-current", step === bookingStep ? "step" : "false");
   });
   $("bookingBackButton").classList.toggle("hidden", bookingStep === 1);
-  $("bookingNextButton").classList.toggle("hidden", bookingStep === 4);
-  $("bookingSubmitButton").classList.toggle("hidden", bookingStep !== 4);
+  $("bookingNextButton").classList.toggle("hidden", bookingStep === 5);
+  $("bookingSubmitButton").classList.toggle("hidden", bookingStep !== 5);
   $("bookingSummaryStep").textContent = bookingStep;
   updateBookingReview();
-  if (bookingStep === 3 && bookingMap) requestAnimationFrame(() => bookingMap.invalidateSize());
-  if (bookingStep === 3 && !$('bookingLatitude').value && $('bookingAddress').value.trim() && !bookingAddressAutoLocated) {
+  if (bookingStep === 2) renderPhotoStep();
+  if (bookingStep === 4 && bookingMap) requestAnimationFrame(() => bookingMap.invalidateSize());
+  if (bookingStep === 4 && !$('bookingLatitude').value && $('bookingAddress').value.trim() && !bookingAddressAutoLocated) {
     bookingAddressAutoLocated = true;
     locateBookingAddress(true);
   }
@@ -338,13 +378,13 @@ function validateBookingStep(step) {
       return false;
     }
   }
-  if (step === 2) {
+  if (step === 3) {
     const validDate = validateBookingDate();
     const hasTime = Boolean(document.querySelector('input[name="bookingTime"]:checked'));
     if (!validDate) return false;
     if (!hasTime) { toast("Choose a preferred time slot to continue."); return false; }
   }
-  if (step === 3) {
+  if (step === 4) {
     if (!$('bookingAddress').value.trim()) { toast("Enter your service address to continue."); return false; }
     if (!$('bookingCity').value || !$('bookingLatitude').value || !$('bookingLongitude').value) {
       setMapMessage("Please drop a pin within our Metro Cebu service area before continuing.", true);
@@ -501,6 +541,81 @@ function bookingInfo(label, value, status) {
 }
 
 // Per-unit pricing controls for tiered services.
+const BOOKING_PHOTO_MAX_COUNT = 3;
+const BOOKING_PHOTO_MAX_SIZE_MB = 8;
+const bookingPhotoTypes = new Set(["image/jpeg", "image/png"]);
+let bookingPhotoCards = [];
+
+function parseStoredPhotos(block) {
+  try {
+    const parsed = JSON.parse(block?.dataset?.photos || "[]");
+    return Array.isArray(parsed) ? parsed.filter((url) => typeof url === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(reader.result));
+    reader.addEventListener("error", () => reject(reader.error));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function filesToDataUrls(fileList, { maxCount = BOOKING_PHOTO_MAX_COUNT, maxSizeMb = BOOKING_PHOTO_MAX_SIZE_MB } = {}) {
+  const maxBytes = maxSizeMb * 1024 * 1024;
+  const urls = [];
+  let skipped = 0;
+  for (const file of Array.from(fileList || [])) {
+    if (urls.length >= maxCount) { toast(`You can add up to ${maxCount} photos per unit.`); break; }
+    if (!bookingPhotoTypes.has(file.type) || file.size > maxBytes) { skipped += 1; continue; }
+    try {
+      urls.push(await readFileAsDataUrl(file));
+    } catch {
+      skipped += 1;
+    }
+  }
+  if (skipped) toast(`Skipped ${skipped} file${skipped === 1 ? "" : "s"} — only JPG or PNG under ${maxSizeMb} MB are accepted.`);
+  return urls;
+}
+
+function bookingPhotoUnits() {
+  return [...document.querySelectorAll("#bookingServices .booking-service-card")].flatMap((card) => {
+    const toggle = card.querySelector("[data-service-unit-toggle]");
+    if (!toggle || !toggle.checked) return [];
+    const service = services.find((item) => String(item.id) === String(card.dataset.serviceId));
+    if (!service) return [];
+    return [...card.querySelectorAll(".booking-unit-block")].map((block, index) => ({ block, label: `${service.name} — Aircon unit ${index + 1}` }));
+  });
+}
+
+function renderPhotoStep() {
+  const container = $("bookingPhotos");
+  if (!container) return;
+  bookingPhotoCards = bookingPhotoUnits();
+  if (!bookingPhotoCards.length) {
+    container.innerHTML = `<p class="booking-photos-empty">Select a service first to add photos for it.</p>`;
+    return;
+  }
+  container.innerHTML = bookingPhotoCards.map((card, index) => {
+    const photos = parseStoredPhotos(card.block);
+    const thumbs = photos.length
+      ? `<div class="booking-photo-previews">${photos.map((photo, photoIndex) => `<figure class="booking-photo-thumb"><img src="${escapeHtml(photo)}" alt="Photo ${photoIndex + 1} for ${escapeHtml(card.label)}" /><button type="button" class="booking-photo-remove" data-photo-card="${index}" data-photo-index="${photoIndex}" aria-label="Remove photo ${photoIndex + 1}">×</button></figure>`).join("")}</div>`
+      : "";
+    return `<article class="booking-photo-card"><div class="booking-photo-card-header"><div><strong>${escapeHtml(card.label)}</strong><span>Would you like to include photos?</span></div>${photos.length ? `<b>${photos.length}/${BOOKING_PHOTO_MAX_COUNT}</b>` : ""}</div>${thumbs}<label class="booking-photo-dropzone" data-photo-dropzone="${index}"><span>Drag files or click here to upload photos (optional)</span><small>Up to ${BOOKING_PHOTO_MAX_COUNT} photos in JPG or PNG (max of ${BOOKING_PHOTO_MAX_SIZE_MB} MB/photo)</small><input type="file" accept="image/jpeg,image/png" multiple hidden /></label></article>`;
+  }).join("");
+}
+
+async function addBookingPhotos(cardIndex, files) {
+  const card = bookingPhotoCards[cardIndex];
+  if (!card) return;
+  const merged = [...parseStoredPhotos(card.block), ...(await filesToDataUrls(files))].slice(0, BOOKING_PHOTO_MAX_COUNT);
+  card.block.dataset.photos = JSON.stringify(merged);
+  renderPhotoStep();
+}
+
 function selectedServices() {
   return [...document.querySelectorAll("#bookingServices .booking-service-card")].flatMap((card) => {
     const toggle = card.querySelector("[data-service-unit-toggle]");
@@ -512,11 +627,11 @@ function selectedServices() {
         const value = (field) => block.querySelector(`[data-unit-field="${field}"]`)?.value || "";
         const quantity = Number(block.querySelector('input[data-unit-field="quantity"]')?.value || 1);
         if (isRepairService(service)) {
-          return { airconType: value("airconType"), brandId: Number(value("brandId")) || null, technology: value("technology"), problem: value("problem"), quantity, price: Number(service.price || 0), priceReady: true };
+          return { airconType: value("airconType"), brandId: Number(value("brandId")) || null, technology: value("technology"), problem: value("problem"), quantity, price: Number(service.price || 0), priceReady: true, photos: parseStoredPhotos(block) };
         }
         const excessChecked = Boolean(block.querySelector('[data-unit-field="needsExcessPipe"]')?.checked);
         const excessFeet = Number(block.querySelector('[data-unit-field="excessPipeFeet"]')?.value || 0);
-        return { airconType: value("airconType"), brandId: Number(value("brandId")), technology: value("technology"), horsePower: Number(value("horsePower")), quantity, price: Number(block.dataset.matchedPrice || 0), priceReady: block.dataset.priceReady === "true", needsExcessPipe: excessChecked, excessPipeFeet: excessChecked && Number.isFinite(excessFeet) && excessFeet > 0 ? Math.floor(excessFeet) : 0, excessPipeRate: excessChecked ? Number(block.dataset.excessRate || 0) : 0, excessPipeCost: excessChecked ? Number(block.dataset.excessCost || 0) : 0 };
+        return { airconType: value("airconType"), brandId: Number(value("brandId")), technology: value("technology"), horsePower: Number(value("horsePower")), quantity, price: Number(block.dataset.matchedPrice || 0), priceReady: block.dataset.priceReady === "true", needsExcessPipe: excessChecked, excessPipeFeet: excessChecked && Number.isFinite(excessFeet) && excessFeet > 0 ? Math.floor(excessFeet) : 0, excessPipeRate: excessChecked ? Number(block.dataset.excessRate || 0) : 0, excessPipeCost: excessChecked ? Number(block.dataset.excessCost || 0) : 0, photos: parseStoredPhotos(block) };
       });
       return [{ id: Number(service.id), name: service.name, category: service.type, type: service.type, units, price: units.reduce((sum, unit) => sum + unit.price * unit.quantity + (unit.excessPipeCost || 0), 0) }];
     }
@@ -553,7 +668,7 @@ function bookingServiceChoice(service) {
 function unitBlockMarkup(service, index) {
   if (isRepairService(service)) return repairUnitBlockMarkup(service, index);
   const options = brands.map((brand) => `<option value="${brand.id}">${escapeHtml(brand.name)}</option>`).join("");
-  return `<div class="booking-unit-block"><div class="booking-unit-block-header"><strong>Aircon unit ${index + 1}</strong>${index ? `<button type="button" class="booking-remove-unit" data-remove-unit>Remove</button>` : ""}</div><div class="booking-unit-grid"><label class="booking-unit-field"><span>Aircon type</span><select data-unit-field="airconType"><option value="">Select type</option><option>Window</option><option>Split</option><option>Tower</option><option>U-shaped Window</option></select></label><label class="booking-unit-field"><span>Brand</span><select data-unit-field="brandId"><option value="">Select brand</option>${options}</select></label><label class="booking-unit-field"><span>Technology</span><select data-unit-field="technology"><option value="">Select technology</option><option value="Inverter">Inverter</option><option value="Non-Inverter">Non-Inverter</option><option value="Unknown">I don't know</option></select></label><label class="booking-unit-field"><span>No. of units</span><span class="booking-stepper"><button type="button" data-unit-step="minus" data-unit-field="quantity">-</button><input type="number" min="1" step="1" value="1" data-unit-field="quantity"><button type="button" data-unit-step="plus" data-unit-field="quantity">+</button></span></label><label class="booking-unit-field"><span>Cooling size (HP)</span><select data-unit-field="horsePower"><option value="">Select HP</option><option value="0.5">0.5 HP</option><option value="0.6">0.6 HP</option><option value="0.75">0.75 HP</option><option value="0.8">0.8 HP</option><option value="1">1.0 HP</option><option value="1.5">1.5 HP</option><option value="2">2.0 HP</option><option value="2.5">2.5 HP</option><option value="3">3.0 HP</option><option value="4">4.0 HP</option><option value="5">5.0 HP</option><option value="unsure">Not sure</option></select></label></div><div class="booking-unit-price" data-unit-price>Complete details to see matched price</div>${isExcessPipeService(service) ? `<label class="booking-excess-toggle"><input type="checkbox" data-unit-field="needsExcessPipe" />This unit needs excess pipe</label><div class="booking-unit-excess hidden" data-excess-pipe><label class="booking-unit-field"><span>Additional pipe length (ft)</span><input type="number" min="1" step="1" placeholder="e.g. 20" data-unit-field="excessPipeFeet" /></label></div><div class="booking-unit-price booking-unit-price--excess hidden" data-excess-price></div>` : ""}</div>`;
+  return `<div class="booking-unit-block"><div class="booking-unit-block-header"><strong>Aircon unit ${index + 1}</strong>${index ? `<button type="button" class="booking-remove-unit" data-remove-unit>Remove</button>` : ""}</div><div class="booking-unit-grid"><label class="booking-unit-field"><span>Aircon type</span><select data-unit-field="airconType"><option value="">Select type</option><option>Window</option><option>Split</option><option>Tower</option><option>U-shaped Window</option></select></label><label class="booking-unit-field"><span>Brand</span><select data-unit-field="brandId"><option value="">Select brand</option>${options}</select></label><label class="booking-unit-field"><span>Technology</span><select data-unit-field="technology"><option value="">Select technology</option><option value="Inverter">Inverter</option><option value="Non-Inverter">Non-Inverter</option><option value="Unknown">I don't know</option></select></label><label class="booking-unit-field"><span>No. of units</span><span class="booking-stepper"><button type="button" data-unit-step="minus" data-unit-field="quantity">-</button><input type="number" min="1" step="1" value="1" data-unit-field="quantity"><button type="button" data-unit-step="plus" data-unit-field="quantity">+</button></span></label><label class="booking-unit-field booking-unit-field--wide"><span>Cooling size (HP)</span><select data-unit-field="horsePower"><option value="">Select HP</option><option value="0.5">0.5 HP</option><option value="0.6">0.6 HP</option><option value="0.75">0.75 HP</option><option value="0.8">0.8 HP</option><option value="1">1.0 HP</option><option value="1.5">1.5 HP</option><option value="2">2.0 HP</option><option value="2.5">2.5 HP</option><option value="3">3.0 HP</option><option value="4">4.0 HP</option><option value="5">5.0 HP</option><option value="unsure">Not sure</option></select></label></div><div class="booking-unit-price" data-unit-price>Complete details to see matched price</div>${isExcessPipeService(service) ? `<label class="booking-excess-toggle"><input type="checkbox" data-unit-field="needsExcessPipe" />This unit needs excess pipe</label><div class="booking-unit-excess hidden" data-excess-pipe><label class="booking-unit-field"><span>Additional pipe length (ft)</span><input type="number" min="1" step="1" placeholder="e.g. 20" data-unit-field="excessPipeFeet" /></label></div><div class="booking-unit-price booking-unit-price--excess hidden" data-excess-price></div>` : ""}</div>`;
 }
 
 function repairUnitBlockMarkup(service, index) {
@@ -564,7 +679,7 @@ function repairUnitBlockMarkup(service, index) {
 
 function addUnitBlock(serviceId) { const container = document.querySelector(`[data-unit-blocks][data-service-id="${CSS.escape(String(serviceId))}"]`); if (!container) return; const index = container.querySelectorAll(".booking-unit-block").length; container.querySelector("[data-add-unit]")?.insertAdjacentHTML("beforebegin", unitBlockMarkup(services.find((item) => String(item.id) === String(serviceId)), index)); updateBookingTotal(); }
 function adjustUnitValue(button) { const input = button.closest(".booking-stepper")?.querySelector(`input[data-unit-field="${button.dataset.unitField}"]`); if (!input) return; const step = Number(input.step) || 1; const minimum = Number(input.min) || 0; input.value = String(Math.max(minimum, Number((Number(input.value || minimum) + (button.dataset.unitStep === "plus" ? step : -step)).toFixed(2)))); input.dispatchEvent(new Event("input", { bubbles: true })); }
-function handleBookingServiceChange(event) { if (event.target.matches("[data-service-unit-toggle]")) event.target.closest(".booking-service-card").querySelector("[data-unit-blocks]")?.classList.toggle("hidden", !event.target.checked); if (event.target.matches('[data-unit-field="problem"]')) { const note = event.target.closest(".booking-unit-block")?.querySelector("[data-repair-note]"); if (note) note.textContent = repairProblemNotes[event.target.value] || "Select a problem to see an estimated repair range."; } const block = event.target.closest(".booking-unit-block"); if (event.target.matches('[data-unit-field="needsExcessPipe"]')) { block?.querySelector("[data-excess-pipe]")?.classList.toggle("hidden", !event.target.checked); updateExcessPipeDebounced(block); } else if (event.target.matches('[data-unit-field="excessPipeFeet"]')) { updateExcessPipeDebounced(block); } else if (event.target.matches("[data-unit-field]")) { updateUnitPriceDebounced(block); updateExcessPipeDebounced(block); } updateBookingTotal(); }
+function handleBookingServiceChange(event) { if (event.target.matches("[data-service-unit-toggle]")) event.target.closest(".booking-service-card").querySelector("[data-unit-blocks]")?.classList.toggle("hidden", !event.target.checked); if (event.target.matches('[data-unit-field="problem"]')) { const note = event.target.closest(".booking-unit-block")?.querySelector("[data-repair-note]"); if (note) note.textContent = repairProblemNotes[event.target.value] || "Select a problem to see an estimated repair range."; } const block = event.target.closest(".booking-unit-block"); if (event.target.matches('[data-unit-field="needsExcessPipe"]')) { block?.querySelector("[data-excess-pipe]")?.classList.toggle("hidden", !event.target.checked); updateExcessPipeDebounced(block); } else if (event.target.matches('[data-unit-field="excessPipeFeet"]')) { updateExcessPipeDebounced(block); } else if (event.target.matches("[data-unit-field]")) { updateUnitPriceDebounced(block); updateExcessPipeDebounced(block); } updateBookingTotal(); if (bookingStep === 2) renderPhotoStep(); }
 function updateUnitPriceDebounced(block) { if (!block) return; const card = block.closest(".booking-service-card"); const service = services.find((item) => String(item.id) === String(card?.dataset.serviceId)); if (isRepairService(service)) { updateBookingTotal(); return; } clearTimeout(priceTimers.get(block)); block.dataset.priceReady = "false"; delete block.dataset.matchedPrice; const timer = setTimeout(async () => { const hpValue = block.querySelector('[data-unit-field="horsePower"]')?.value || ""; const hp = Number(hpValue); const technology = block.querySelector('[data-unit-field="technology"]')?.value; const airconType = block.querySelector('[data-unit-field="airconType"]')?.value; const output = block.querySelector("[data-unit-price]"); if (hpValue === "unsure") { output.textContent = "Please select your aircon's HP to see the price, or ask our technician to confirm on-site"; updateBookingTotal(); return; } if (!Number.isFinite(hp) || hp <= 0 || !technology) { output.textContent = "Complete details to see matched price"; updateBookingTotal(); return; } output.textContent = "Checking matched price..."; try { const result = await matchServicePrice(Number(card.dataset.serviceId), hp, technology, airconType); block.dataset.matchedPrice = String(result.amount); block.dataset.priceReady = "true"; output.textContent = `Matched price: ${peso(result.amount)} per unit`; } catch (error) { output.textContent = error.message; } updateBookingTotal(); }, 300); priceTimers.set(block, timer); }
 function updateExcessPipeDebounced(block) { if (!block) return; clearTimeout(excessTimers.get(block)); const timer = setTimeout(() => updateExcessPipePrice(block), 250); excessTimers.set(block, timer); }
 async function updateExcessPipePrice(block) { if (!block) return; const card = block.closest(".booking-service-card"); const service = services.find((item) => String(item.id) === String(card?.dataset.serviceId)); const checkbox = block.querySelector('[data-unit-field="needsExcessPipe"]'); const feetInput = block.querySelector('[data-unit-field="excessPipeFeet"]'); const hpInput = block.querySelector('[data-unit-field="horsePower"]'); const quantityInput = block.querySelector('input[data-unit-field="quantity"]'); const output = block.querySelector("[data-excess-price]"); if (!isExcessPipeService(service) || !checkbox || !feetInput || !hpInput || !output) return; block.dataset.excessCost = ""; delete block.dataset.excessRate; if (!checkbox.checked) { output.textContent = ""; output.classList.add("hidden"); updateBookingTotal(); return; } output.classList.remove("hidden"); const hpValue = hpInput.value || ""; const hp = Number(hpValue); const feet = Number(feetInput.value || 0); if (hpValue === "unsure" || !Number.isFinite(hp) || hp <= 0) { output.textContent = "Select the unit's HP to see the excess pipe rate."; updateBookingTotal(); return; } if (!Number.isFinite(feet) || feet <= 0) { output.textContent = "Enter the extra pipe length in feet."; updateBookingTotal(); return; } output.textContent = "Checking excess pipe rate..."; try { const result = await getExcessPipeRate(hp); const rate = Number(result.ratePerFoot); const perUnit = Number((feet * rate).toFixed(2)); const quantity = Number(quantityInput?.value || 1); block.dataset.excessRate = String(rate); block.dataset.excessCost = String(Number((perUnit * quantity).toFixed(2))); output.textContent = `+ ${peso(perUnit)} excess pipe (${feet}ft × ${peso(rate)}/ft)`; } catch (error) { output.textContent = error.message; } updateBookingTotal(); }

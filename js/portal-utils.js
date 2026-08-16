@@ -84,6 +84,12 @@ export function fileToDataUrl(input, existing = "") {
   });
 }
 
+export function renderUnitPhotosMarkup(units = []) {
+  const entries = (Array.isArray(units) ? units : []).filter((unit) => Array.isArray(unit.photos) && unit.photos.length);
+  if (!entries.length) return "";
+  return `<div class="unit-photo-list">${entries.map((unit) => `<div class="unit-photo-list-item"><small>${escapeHtml(unit.description || "Unit")}</small><div class="unit-photo-thumbs">${unit.photos.map((photo) => `<a href="${escapeHtml(photo)}" target="_blank" rel="noopener" class="unit-photo-link" title="View photo"><img src="${escapeHtml(photo)}" alt="Unit photo" loading="lazy" /></a>`).join("")}</div></div>`).join("")}</div>`;
+}
+
 export function renderProducts(products, options = {}) {
   const grid = document.getElementById("productsGrid");
   if (!grid) return;

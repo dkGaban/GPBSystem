@@ -26,7 +26,7 @@ import {
   updateServicePriceTier,
   updateTechnician
 } from "./api.js";
-import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, peso, renderProducts, requireRole, statusBadge, toast } from "./portal-utils.js";
+import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, peso, renderProducts, renderUnitPhotosMarkup, requireRole, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("admin");
 let services = [];
@@ -107,7 +107,7 @@ function renderStats() {
 
 function bookingRows(items) {
   return items.length
-    ? items.map((booking) => `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}</td><td><button class="tiny-button success-button" data-approve="${booking.id}">Approve</button><button class="tiny-button warning-button" data-reject="${booking.id}">Reject</button></td></tr>`).join("")
+    ? items.map((booking) => `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}${renderUnitPhotosMarkup(booking.units)}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}</td><td><button class="tiny-button success-button" data-approve="${booking.id}">Approve</button><button class="tiny-button warning-button" data-reject="${booking.id}">Reject</button></td></tr>`).join("")
     : `<tr><td colspan="7" class="text-center text-slate-500">No bookings yet.</td></tr>`;
 }
 

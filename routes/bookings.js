@@ -20,7 +20,25 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
       const customerFilter = req.user.role === "customer" ? "WHERE LOWER(b.Email) = LOWER(@Email)" : "";
       if (req.user.role === "customer") request.input("Email", sql.NVarChar(150), req.user.email);
       const result = await request.query(`SELECT b.RequestID AS id, b.CustomerName AS customer, b.Phone AS phone, b.Email AS email, b.ServiceName AS service, b.Address AS address, b.UnableToCompleteReason AS unableToCompleteReason, CONVERT(varchar(10), b.RequestDate, 23) AS preferredDate, b.RequestTime AS preferredTime, b.TotalAmount AS totalAmount, b.Status AS status, t.Name AS technician, CONVERT(varchar(10), s.ScheduleDate, 23) AS scheduleDate, s.ScheduleTime AS scheduleTime FROM tblServiceRequest b LEFT JOIN Schedules s ON s.BookingId = b.RequestID LEFT JOIN Technicians t ON t.Id = s.TechnicianId ${customerFilter} ORDER BY b.RequestID DESC`);
-      res.json(result.recordset);
+      const bookings = result.recordset;
+      if (bookings.length) {
+        const ids = bookings.map((booking) => Number(booking.id)).filter((id) => Number.isInteger(id) && id > 0);
+        if (ids.length) {
+          const detailsResult = await pool.request().query(`SELECT sd.RequestID AS requestId, sd.Quantity AS quantity, sd.Description AS description, sd.UPrice AS uPrice, sd.SubTotal AS subTotal, cu.Photos AS photos FROM tblServiceDetails sd LEFT JOIN tblCustomerUnit cu ON cu.CUnitID = sd.CUnitID WHERE sd.RequestID IN (${ids.join(",")})`);
+          const unitsByRequest = new Map();
+          detailsResult.recordset.forEach((row) => {
+            if (!unitsByRequest.has(row.requestId)) unitsByRequest.set(row.requestId, []);
+            let photos = [];
+            try {
+              const parsed = JSON.parse(row.photos || "[]");
+              if (Array.isArray(parsed)) photos = parsed.filter((photo) => typeof photo === "string");
+            } catch { photos = []; }
+            unitsByRequest.get(row.requestId).push({ quantity: row.quantity, description: row.description, uPrice: row.uPrice, subTotal: row.subTotal, photos });
+          });
+          bookings.forEach((booking) => { booking.units = unitsByRequest.get(booking.id) || []; });
+        }
+      }
+      res.json(bookings);
     } catch (error) { sendInternalError(res, error, "Request failed"); }
   });
 
@@ -64,7 +82,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
               brandName = brandResult.recordset[0]?.Name || null;
               if (!brandName) { const error = new Error("The selected Repair brand is no longer available."); error.statusCode = 400; throw error; }
             }
-            preparedUnits.push({ problem, airconType, technology, horsePower: null, brandId, brandName, quantity, amount: Number(service.Price || 0) });
+            preparedUnits.push({ problem, airconType, technology, horsePower: null, brandId, brandName, quantity, amount: Number(service.Price || 0), photos: Array.isArray(unit.photos) ? unit.photos : [] });
             continue;
           }
           const airconType = String(unit.airconType || "").trim();
@@ -91,7 +109,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
               excessNote = ` + ${excessFeet}ft excess pipe (₱${rate.toFixed(2)}/ft)`;
             }
           }
-          preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount, excessNote });
+          preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount, excessNote, photos: Array.isArray(unit.photos) ? unit.photos : [] });
         }
         return { ...service, units: preparedUnits, total: preparedUnits.length ? preparedUnits.reduce((sum, unit) => sum + unit.amount * unit.quantity, 0) : Number(service.Price || 0) };
       }));
@@ -128,11 +146,17 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
         const requestId = result.recordset[0].id;
         for (const serviceItem of pricedServices) {
           for (const unit of serviceItem.units) {
+            let photosJson = null;
+            try {
+              const photos = Array.isArray(unit.photos) ? unit.photos.filter((photo) => typeof photo === "string" && photo.trim()).slice(0, 3) : [];
+              photosJson = photos.length ? JSON.stringify(photos) : null;
+            } catch { photosJson = null; }
             const customerUnit = await transaction.request()
               .input("CustomerID", sql.Int, customerId).input("BrandID", sql.Int, unit.brandId)
               .input("AirconType", sql.NVarChar(50), unit.airconType).input("Technology", sql.NVarChar(50), unit.technology)
               .input("HorsePower", sql.Decimal(4, 2), unit.horsePower)
-              .query("INSERT INTO tblCustomerUnit (CustomerID, BrandID, AirconType, Technology, HorsePower) OUTPUT INSERTED.CUnitID AS id VALUES (@CustomerID, @BrandID, @AirconType, @Technology, @HorsePower)");
+              .input("Photos", sql.NVarChar(sql.MAX), photosJson)
+              .query("INSERT INTO tblCustomerUnit (CustomerID, BrandID, AirconType, Technology, HorsePower, Photos) OUTPUT INSERTED.CUnitID AS id VALUES (@CustomerID, @BrandID, @AirconType, @Technology, @HorsePower, @Photos)");
             const cUnitId = customerUnit.recordset[0].id;
             const repairContext = [unit.airconType, unit.brandName, unit.technology].filter(Boolean).join(", ");
             const description = unit.problem ? ["Repair", repairContext, unit.problem].filter(Boolean).join(" \\u2014 ") : `${unit.airconType} ${unit.technology} ${unit.horsePower}HP${unit.excessNote || ""}`;

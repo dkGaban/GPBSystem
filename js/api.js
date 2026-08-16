@@ -209,6 +209,7 @@ export function createBooking(booking) {
       units: service.units.map((unit) => {
         const base = { airconType: unit.airconType, brandId: Number(unit.brandId), technology: unit.technology, horsePower: Number(unit.horsePower), quantity: Number(unit.quantity) };
         if (unit.problem) base.problem = unit.problem;
+        if (Array.isArray(unit.photos) && unit.photos.length) base.photos = unit.photos;
         if (unit.needsExcessPipe) {
           base.needsExcessPipe = true;
           base.excessPipeFeet = Number(unit.excessPipeFeet) || 0;

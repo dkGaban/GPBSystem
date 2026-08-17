@@ -1,5 +1,6 @@
 import {
   createCustomer,
+  createExcessPipeRate,
   createProduct,
   createSchedule,
   createService,
@@ -7,6 +8,7 @@ import {
   createTechnician,
   getBookings,
   getBrands,
+  getExcessPipeRates,
   getProductServices,
   getCustomers,
   getLogs,
@@ -15,12 +17,14 @@ import {
   getTechnicians,
   removeBooking,
   removeCustomer,
+  removeExcessPipeRate,
   removeProduct,
   removeService,
   removeServicePriceTier,
   removeTechnician,
   updateBookingStatus,
   updateCustomer,
+  updateExcessPipeRate,
   updateProduct,
   updateService,
   updateServicePriceTier,
@@ -38,6 +42,7 @@ let logs = [];
 let brands = [];
 let productLines = [];
 let productServices = [];
+let excessPipeRates = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -61,14 +66,15 @@ async function init() {
 }
 
 async function loadAll() {
-  [services, products, technicians, customers, bookings, logs, brands] = await Promise.all([
+  [services, products, technicians, customers, bookings, logs, brands, excessPipeRates] = await Promise.all([
     getServices(),
     getProducts(),
     getTechnicians(),
     getCustomers(),
     getBookings(),
     getLogs(),
-    getBrands()
+    getBrands(),
+    getExcessPipeRates()
   ]);
   render();
 }
@@ -78,6 +84,7 @@ function render() {
   renderBookings();
   renderServices();
   renderProducts(products, { admin: true });
+  renderExcessPipeRates();
   renderTechnicians();
   renderCustomers();
   renderSchedules();
@@ -243,6 +250,56 @@ function renderBookingMonitor() {
     .join("") + `<div class="monitor-total"><span>Total Bookings</span><strong>${bookings.length}</strong></div>`;
 }
 
+function renderExcessPipeRates() {
+  const container = $("excessPipeRatesList");
+  if (!container) return;
+  container.innerHTML = excessPipeRates.length
+    ? excessPipeRates.map((rate) => `<div class="grid grid-cols-1 items-center gap-2 rounded-lg border border-slate-200 p-2 md:grid-cols-[1fr_1fr_auto_auto]"><input id="excessPipeHPower-${rate.id}" value="${escapeHtml(rate.hPower || "")}" placeholder="HPower" /><input id="excessPipeRatePerFoot-${rate.id}" type="number" min="0.01" step="0.01" value="${escapeHtml(rate.ratePerFoot ?? "")}" placeholder="Rate per foot" /><button type="button" class="tiny-button secondary-button" data-save-excess-pipe-rate="${rate.id}">Save</button><button type="button" class="tiny-button danger-button" data-delete-excess-pipe-rate="${rate.id}">Delete</button></div>`).join("")
+    : `<p class="empty-note">No excess pipe rates yet.</p>`;
+  $("newExcessPipeHPower").value = "";
+  $("newExcessPipeRate").value = "";
+}
+
+function readExcessPipePayload(hPower, ratePerFoot) {
+  const hp = hPower.trim();
+  const rate = ratePerFoot.trim();
+  if (!hp) { toast("HPower is required."); return null; }
+  if (!rate || !Number.isFinite(Number(rate)) || Number(rate) <= 0) { toast("Rate per foot must be a positive number."); return null; }
+  return { hPower: hp, ratePerFoot: rate };
+}
+
+async function addExcessPipeRate() {
+  const payload = readExcessPipePayload($("newExcessPipeHPower").value, $("newExcessPipeRate").value);
+  if (!payload) return;
+  try {
+    const rate = await createExcessPipeRate(payload);
+    excessPipeRates.push(rate);
+    renderExcessPipeRates();
+    toast("Excess pipe rate added.");
+  } catch (error) { toast(error.message); }
+}
+
+async function saveExcessPipeRate(rateId) {
+  const payload = readExcessPipePayload($(`excessPipeHPower-${rateId}`).value, $(`excessPipeRatePerFoot-${rateId}`).value);
+  if (!payload) return;
+  try {
+    const updated = await updateExcessPipeRate(rateId, payload);
+    excessPipeRates = excessPipeRates.map((item) => String(item.id) === String(rateId) ? updated : item);
+    renderExcessPipeRates();
+    toast("Excess pipe rate updated.");
+  } catch (error) { toast(error.message); }
+}
+
+async function deleteExcessPipeRate(rateId) {
+  if (!confirm("Delete this excess pipe rate?")) return;
+  try {
+    await removeExcessPipeRate(rateId);
+    excessPipeRates = excessPipeRates.filter((item) => String(item.id) !== String(rateId));
+    renderExcessPipeRates();
+    toast("Excess pipe rate deleted.");
+  } catch (error) { toast(error.message); }
+}
+
 async function handleClick(event) {
   const button = event.target.closest("button");
   if (!button) return;
@@ -261,6 +318,9 @@ async function handleClick(event) {
   if (button.dataset.editTechnician) return fillTechnician(button.dataset.editTechnician);
   if (button.dataset.editCustomer) return fillCustomer(button.dataset.editCustomer);
   if (button.dataset.historyCustomer) return showHistory(button.dataset.historyCustomer);
+  if (button.dataset.addExcessPipeRate) return addExcessPipeRate();
+  if (button.dataset.saveExcessPipeRate) return saveExcessPipeRate(button.dataset.saveExcessPipeRate);
+  if (button.dataset.deleteExcessPipeRate) return deleteExcessPipeRate(button.dataset.deleteExcessPipeRate);
 }
 
 function showHistory(id) { const customer = customers.find((item) => String(item.id) === String(id)); const items = bookings.filter((booking) => booking.status === "Completed" && String(booking.customer).trim().toLowerCase() === String(customer?.name || "").trim().toLowerCase()); $("historyTitle").textContent = `${customer?.name || "Customer"} — Service History`; $("historyBody").innerHTML = items.length ? items.map((booking) => `<article class="history-entry"><strong>${escapeHtml(booking.service)}</strong><span>${escapeHtml(booking.preferredDate || booking.scheduleDate || "Date not set")} · ${escapeHtml(booking.preferredTime || booking.scheduleTime || "Time not set")}</span><b>${peso(booking.totalAmount)}</b></article>`).join("") : `<p class="empty-note">No completed services found.</p>`; $("historyModal").classList.remove("hidden"); }

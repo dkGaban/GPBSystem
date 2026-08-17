@@ -105,6 +105,28 @@ export function getExcessPipeRate(hPower) {
   return requestJson(`/api/excess-pipe/match?${params.toString()}`);
 }
 
+export function getExcessPipeRates() {
+  return requestJson("/api/excess-pipe");
+}
+
+export function createExcessPipeRate(payload) {
+  return requestJson("/api/excess-pipe", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateExcessPipeRate(id, payload) {
+  return requestJson(`/api/excess-pipe/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function removeExcessPipeRate(id) {
+  await requestJson(`/api/excess-pipe/${id}`, { method: "DELETE" });
+}
+
 export function createService(service) {
   return requestJson("/api/services", {
     method: "POST",

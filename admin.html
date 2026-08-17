@@ -29,6 +29,7 @@
         <button class="nav-link" data-tab="bookings"><span class="nav-icon icon-bookings"></span>Bookings</button>
         <button class="nav-link" data-tab="schedules"><span class="nav-icon icon-schedule"></span>Schedules</button>
         <button class="nav-link" data-tab="services"><span class="nav-icon icon-service"></span>Services</button>
+        <button class="nav-link" data-tab="excesspipe"><span class="nav-icon icon-service"></span>Excess Pipe</button>
         <button class="nav-link" data-tab="products"><span class="nav-icon icon-product"></span>Products</button>
         <button class="nav-link" data-tab="technicians"><span class="nav-icon icon-tech"></span>Technicians</button>
         <button class="nav-link" data-tab="customers"><span class="nav-icon icon-customer"></span>Customers</button>
@@ -141,6 +142,23 @@
             </thead>
             <tbody id="servicesBody"></tbody>
           </table>
+        </section>
+      </section>
+
+      <section id="excesspipeTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Excess Pipe Rates</h2>
+            <p>Manage horsepower-based excess pipe pricing bands.</p>
+          </div>
+        </div>
+        <section class="panel">
+          <div id="excessPipeRatesList" class="space-y-2"></div>
+          <div class="grid grid-cols-1 gap-2 md:grid-cols-3 mt-3">
+            <input id="newExcessPipeHPower" placeholder="HPower (e.g. 1.5 HP)" />
+            <input id="newExcessPipeRate" type="number" min="0.01" step="0.01" placeholder="Rate per foot" />
+            <button type="button" class="secondary-button" data-add-excess-pipe-rate="true">Add rate</button>
+          </div>
         </section>
       </section>
 

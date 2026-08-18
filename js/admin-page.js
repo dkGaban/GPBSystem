@@ -1,6 +1,5 @@
 import {
   createCustomer,
-  createExcessPipeRate,
   createProduct,
   createSchedule,
   createService,
@@ -8,7 +7,7 @@ import {
   createTechnician,
   getBookings,
   getBrands,
-  getExcessPipeRates,
+  getExcessPipeRate,
   getProductServices,
   getCustomers,
   getLogs,
@@ -17,7 +16,6 @@ import {
   getTechnicians,
   removeBooking,
   removeCustomer,
-  removeExcessPipeRate,
   removeProduct,
   removeService,
   removeServicePriceTier,
@@ -42,7 +40,7 @@ let logs = [];
 let brands = [];
 let productLines = [];
 let productServices = [];
-let excessPipeRates = [];
+let excessPipeRate = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -66,16 +64,25 @@ async function init() {
 }
 
 async function loadAll() {
-  [services, products, technicians, customers, bookings, logs, brands, excessPipeRates] = await Promise.all([
-    getServices(),
-    getProducts(),
-    getTechnicians(),
-    getCustomers(),
-    getBookings(),
-    getLogs(),
-    getBrands(),
-    getExcessPipeRates()
+  const settle = async (label, fn) => {
+    try { return await fn(); } catch (error) { console.error(`Failed to load ${label}:`, error); return null; }
+  };
+  const [s, p, t, c, b, l, br] = await Promise.all([
+    settle("services", getServices),
+    settle("products", getProducts),
+    settle("technicians", getTechnicians),
+    settle("customers", getCustomers),
+    settle("bookings", getBookings),
+    settle("logs", getLogs),
+    settle("brands", getBrands)
   ]);
+  if (s) services = s;
+  if (p) products = p;
+  if (t) technicians = t;
+  if (c) customers = c;
+  if (b) bookings = b;
+  if (l) logs = l;
+  if (br) brands = br;
   render();
 }
 
@@ -84,7 +91,6 @@ function render() {
   renderBookings();
   renderServices();
   renderProducts(products, { admin: true });
-  renderExcessPipeRates();
   renderTechnicians();
   renderCustomers();
   renderSchedules();
@@ -250,54 +256,83 @@ function renderBookingMonitor() {
     .join("") + `<div class="monitor-total"><span>Total Bookings</span><strong>${bookings.length}</strong></div>`;
 }
 
-function renderExcessPipeRates() {
-  const container = $("excessPipeRatesList");
-  if (!container) return;
-  container.innerHTML = excessPipeRates.length
-    ? excessPipeRates.map((rate) => `<div class="grid grid-cols-1 items-center gap-2 rounded-lg border border-slate-200 p-2 md:grid-cols-[1fr_1fr_auto_auto]"><input id="excessPipeHPower-${rate.id}" value="${escapeHtml(rate.hPower || "")}" placeholder="HPower" /><input id="excessPipeRatePerFoot-${rate.id}" type="number" min="0.01" step="0.01" value="${escapeHtml(rate.ratePerFoot ?? "")}" placeholder="Rate per foot" /><button type="button" class="tiny-button secondary-button" data-save-excess-pipe-rate="${rate.id}">Save</button><button type="button" class="tiny-button danger-button" data-delete-excess-pipe-rate="${rate.id}">Delete</button></div>`).join("")
-    : `<p class="empty-note">No excess pipe rates yet.</p>`;
-  $("newExcessPipeHPower").value = "";
-  $("newExcessPipeRate").value = "";
+let excessPipeRateLoaded = false;
+
+function getPricingStatus() {
+  return $("pricingSettingsStatus");
 }
 
-function readExcessPipePayload(hPower, ratePerFoot) {
-  const hp = hPower.trim();
-  const rate = ratePerFoot.trim();
-  if (!hp) { toast("HPower is required."); return null; }
-  if (!rate || !Number.isFinite(Number(rate)) || Number(rate) <= 0) { toast("Rate per foot must be a positive number."); return null; }
-  return { hPower: hp, ratePerFoot: rate };
+function setPricingStatus(html, type) {
+  const el = getPricingStatus();
+  if (!el) return;
+  el.innerHTML = html;
+  el.className = "pricing-settings-status" + (type ? ` pricing-settings-status--${type}` : "");
 }
 
-async function addExcessPipeRate() {
-  const payload = readExcessPipePayload($("newExcessPipeHPower").value, $("newExcessPipeRate").value);
-  if (!payload) return;
+function clearPricingStatus() {
+  const el = getPricingStatus();
+  if (el) { el.innerHTML = ""; el.className = "pricing-settings-status"; }
+}
+
+async function loadExcessPipeRate() {
+  const display = $("excessPipeRateDisplay");
+  if (display) display.textContent = "Loading...";
+  clearPricingStatus();
   try {
-    const rate = await createExcessPipeRate(payload);
-    excessPipeRates.push(rate);
-    renderExcessPipeRates();
-    toast("Excess pipe rate added.");
-  } catch (error) { toast(error.message); }
+    const result = await getExcessPipeRate();
+    excessPipeRate = result;
+    excessPipeRateLoaded = true;
+    renderExcessPipeRate();
+  } catch (error) {
+    console.error("loadExcessPipeRate failed:", error);
+    const notConfigured = /not configured/i.test(error.message);
+    if (notConfigured) {
+      excessPipeRateLoaded = true;
+      renderExcessPipeRate();
+      setPricingStatus("No rate has been configured yet — set one below.", "muted");
+    } else {
+      const detail = error.status ? `${error.message} (HTTP ${error.status})` : error.message;
+      renderExcessPipeRate();
+      setPricingStatus(`Could not load current rate: ${detail} <button type="button" class="tiny-button secondary-button" data-reload-excess-pipe-rate="true">Retry</button>`, "error");
+    }
+  }
 }
 
-async function saveExcessPipeRate(rateId) {
-  const payload = readExcessPipePayload($(`excessPipeHPower-${rateId}`).value, $(`excessPipeRatePerFoot-${rateId}`).value);
-  if (!payload) return;
+function renderExcessPipeRate() {
+  const display = $("excessPipeRateDisplay");
+  if (!display) return;
+  const rate = excessPipeRate?.ratePerFoot;
+  display.textContent = rate != null ? peso(rate) + " per ft" : "Not set";
+  const input = $("excessPipeRateInput");
+  if (input) input.value = rate != null ? rate : "";
+}
+
+function togglePricingSettings() {
+  const body = $("pricingSettingsBody");
+  const card = $("pricingSettingsCard");
+  if (!body || !card) return;
+  const isHidden = body.classList.contains("hidden");
+  body.classList.toggle("hidden");
+  card.classList.toggle("open");
+  if (isHidden && !excessPipeRateLoaded) loadExcessPipeRate();
+}
+
+async function saveExcessPipeRateInline() {
+  const input = $("excessPipeRateInput");
+  const rate = Number(input?.value);
+  if (!Number.isFinite(rate) || rate <= 0) { toast("Rate per foot must be a positive number."); return; }
   try {
-    const updated = await updateExcessPipeRate(rateId, payload);
-    excessPipeRates = excessPipeRates.map((item) => String(item.id) === String(rateId) ? updated : item);
-    renderExcessPipeRates();
+    const updated = await updateExcessPipeRate(rate);
+    excessPipeRate = updated;
+    excessPipeRateLoaded = true;
+    renderExcessPipeRate();
+    clearPricingStatus();
     toast("Excess pipe rate updated.");
-  } catch (error) { toast(error.message); }
-}
-
-async function deleteExcessPipeRate(rateId) {
-  if (!confirm("Delete this excess pipe rate?")) return;
-  try {
-    await removeExcessPipeRate(rateId);
-    excessPipeRates = excessPipeRates.filter((item) => String(item.id) !== String(rateId));
-    renderExcessPipeRates();
-    toast("Excess pipe rate deleted.");
-  } catch (error) { toast(error.message); }
+  } catch (error) {
+    console.error("saveExcessPipeRateInline failed:", error);
+    const detail = error.status ? `${error.message} (HTTP ${error.status})` : error.message;
+    toast(`Failed to save rate: ${detail}`);
+  }
 }
 
 async function handleClick(event) {
@@ -318,9 +353,9 @@ async function handleClick(event) {
   if (button.dataset.editTechnician) return fillTechnician(button.dataset.editTechnician);
   if (button.dataset.editCustomer) return fillCustomer(button.dataset.editCustomer);
   if (button.dataset.historyCustomer) return showHistory(button.dataset.historyCustomer);
-  if (button.dataset.addExcessPipeRate) return addExcessPipeRate();
-  if (button.dataset.saveExcessPipeRate) return saveExcessPipeRate(button.dataset.saveExcessPipeRate);
-  if (button.dataset.deleteExcessPipeRate) return deleteExcessPipeRate(button.dataset.deleteExcessPipeRate);
+  if (button.dataset.saveExcessPipeRate) return saveExcessPipeRateInline();
+  if (button.dataset.togglePricingSettings) return togglePricingSettings();
+  if (button.dataset.reloadExcessPipeRate) { excessPipeRateLoaded = false; return loadExcessPipeRate(); }
 }
 
 function showHistory(id) { const customer = customers.find((item) => String(item.id) === String(id)); const items = bookings.filter((booking) => booking.status === "Completed" && String(booking.customer).trim().toLowerCase() === String(customer?.name || "").trim().toLowerCase()); $("historyTitle").textContent = `${customer?.name || "Customer"} — Service History`; $("historyBody").innerHTML = items.length ? items.map((booking) => `<article class="history-entry"><strong>${escapeHtml(booking.service)}</strong><span>${escapeHtml(booking.preferredDate || booking.scheduleDate || "Date not set")} · ${escapeHtml(booking.preferredTime || booking.scheduleTime || "Time not set")}</span><b>${peso(booking.totalAmount)}</b></article>`).join("") : `<p class="empty-note">No completed services found.</p>`; $("historyModal").classList.remove("hidden"); }

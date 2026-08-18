@@ -32,8 +32,10 @@ async function requestJson(url, options = {}) {
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "Request failed." }));
-    throw new Error(error.message || "Request failed.");
+    const body = await response.json().catch(() => ({ message: "Request failed." }));
+    const err = new Error(body.message || "Request failed.");
+    err.status = response.status;
+    throw err;
   }
 
   if (response.status === 204) return null;
@@ -100,31 +102,15 @@ export function matchServicePrice(serviceId, hPower, unitType, airconType) {
   return requestJson(`/api/services/${serviceId}/price-match?${params.toString()}`);
 }
 
-export function getExcessPipeRate(hPower) {
-  const params = new URLSearchParams({ hPower: String(hPower) });
-  return requestJson(`/api/excess-pipe/match?${params.toString()}`);
+export function getExcessPipeRate() {
+  return requestJson("/api/excess-pipe/rate");
 }
 
-export function getExcessPipeRates() {
-  return requestJson("/api/excess-pipe");
-}
-
-export function createExcessPipeRate(payload) {
-  return requestJson("/api/excess-pipe", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
-export function updateExcessPipeRate(id, payload) {
-  return requestJson(`/api/excess-pipe/${id}`, {
+export function updateExcessPipeRate(ratePerFoot) {
+  return requestJson("/api/excess-pipe/rate", {
     method: "PUT",
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ ratePerFoot })
   });
-}
-
-export async function removeExcessPipeRate(id) {
-  await requestJson(`/api/excess-pipe/${id}`, { method: "DELETE" });
 }
 
 export function createService(service) {

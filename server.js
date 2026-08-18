@@ -9,15 +9,11 @@ const logger = require("./utils/logger");
 const { createToken, readToken } = require("./utils/token");
 const { addressFromBody, saveProfilePhoto } = require("./utils/address");
 const { isValidPhilippineMobile, isStrongPassword, normalizeEmail, isValidEmail, validateTechnicianPayload, validateServicePayload } = require("./utils/validation");
-const { isPastOrInvalidCalendarDate: sharedIsPastOrInvalidCalendarDate, slotToMinuteRange: sharedSlotToMinuteRange, timeSlotsOverlap: sharedTimeSlotsOverlap } = require("./utils/scheduling");
 const { actorName, createLogAction, sendInternalError: sendInternalErrorResponse } = require("./utils/audit");
 const { validateServiceArea } = require("./utils/service-area");
 const { startReminderCron } = require("./utils/reminders");
 
 const app = express();
-const isPastOrInvalidCalendarDate = sharedIsPastOrInvalidCalendarDate;
-const slotToMinuteRange = sharedSlotToMinuteRange;
-const timeSlotsOverlap = sharedTimeSlotsOverlap;
 const port = process.env.PORT || 3000;
 if (!process.env.JWT_SECRET) throw new Error("JWT_SECRET must be set before starting the application.");
 if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) throw new Error("EMAIL_USER and EMAIL_APP_PASSWORD must be set before starting the application. Use a Gmail App Password, not the account password.");
@@ -40,36 +36,6 @@ function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
 
 function verifyPassword(password, salt, hash) {
   return hashPassword(password, salt).hash === hash;
-}
-
-function legacyIsPastOrInvalidCalendarDate(value) {
-  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return true;
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-  if (date.getFullYear() !== Number(match[1]) || date.getMonth() !== Number(match[2]) - 1 || date.getDate() !== Number(match[3])) return true;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return date < today;
-}
-
-function legacySlotToMinuteRange(slot) {
-  const parseTime = (value) => {
-    const match = String(value || "").trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
-    if (!match) return null;
-    let hours = Number(match[1]);
-    const minutes = Number(match[2] || 0);
-    if (hours === 12) hours = 0;
-    if (match[3].toUpperCase() === "PM") hours += 12;
-    return hours * 60 + minutes;
-  };
-  const values = String(slot || "").split(/\s*(?:–|—|-)\s*/).map(parseTime);
-  return values.length === 2 && values.every(Number.isFinite) ? values : null;
-}
-
-function legacyTimeSlotsOverlap(firstSlot, secondSlot) {
-  const first = legacySlotToMinuteRange(firstSlot);
-  const second = legacySlotToMinuteRange(secondSlot);
-  return first && second ? first[0] < second[1] && second[0] < first[1] : String(firstSlot) === String(secondSlot);
 }
 
 function requireUser(req, res, next) {

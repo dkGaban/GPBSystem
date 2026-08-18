@@ -2,7 +2,7 @@ const { isValidPhilippineMobile } = require("../utils/validation");
 const { isPastOrInvalidCalendarDate } = require("../utils/scheduling");
 const { appointmentExpiry, sendBookingConfirmationEmail } = require("../utils/reminders");
 const { matchServicePrice } = require("./services");
-const { matchExcessPipeRate } = require("./excess-pipe");
+const { getExcessPipeRate } = require("./excess-pipe");
 
 module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser, requireAdmin, logAction, actorName, sendInternalError, validateServiceArea }) {
   async function findReminderBooking(token) {
@@ -102,7 +102,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
             if (rawExcessFeet !== undefined && rawExcessFeet !== null && String(rawExcessFeet).trim() !== "") {
               const excessFeet = Number(rawExcessFeet);
               if (!Number.isInteger(excessFeet) || excessFeet <= 0) { const error = new Error("Excess pipe length must be a positive whole number."); error.statusCode = 400; throw error; }
-              const rateMatch = await matchExcessPipeRate(pool, sql, horsePower);
+              const rateMatch = await getExcessPipeRate(pool, sql);
               if (!rateMatch) { const error = new Error("Unable to verify the excess pipe rate for this unit."); error.statusCode = 400; throw error; }
               const rate = Number(rateMatch.ratePerFoot);
               amount = Number((amount + excessFeet * rate).toFixed(2));

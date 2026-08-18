@@ -1,3 +1,5 @@
+import { escapeHtml } from "./portal-utils.js";
+
 const token = new URLSearchParams(window.location.search).get("token");
 const $ = (id) => document.getElementById(id);
 let booking;
@@ -42,4 +44,4 @@ async function submitAction(action, payload) {
 function showMessage(message, isError) { $("reminderMessage").textContent = message; $("reminderMessage").classList.toggle("error-message", isError); }
 function formatDate(value) { return new Intl.DateTimeFormat("en-PH", { dateStyle: "long" }).format(new Date(value)); }
 function todayDate() { const now = new Date(); const offset = now.getTimezoneOffset() * 60000; return new Date(now.getTime() - offset).toISOString().slice(0, 10); }
-function escapeHtml(value) { return String(value || "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", "\"": "&quot;" }[character])); }
+

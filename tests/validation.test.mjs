@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import business from "../utils/business.js";
+import validation from "../utils/validation.js";
+import scheduling from "../utils/scheduling.js";
 
-const { isValidPhilippineMobile, isStrongPassword, isPastOrInvalidCalendarDate, slotToMinuteRange, timeSlotsOverlap, validateTechnicianPayload, validateServicePayload } = business;
+const { isValidPhilippineMobile, isStrongPassword, validateTechnicianPayload, validateServicePayload } = validation;
+const { isPastOrInvalidCalendarDate, slotToMinuteRange, timeSlotsOverlap } = scheduling;
 
 describe("business validation", () => {
   it("validates Philippine mobile numbers", () => {

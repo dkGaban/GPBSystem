@@ -29,4 +29,4 @@ async function saveProfilePhoto(photo) {
   return `uploads/technicians/${filename}`;
 }
 
-module.exports = { addressFromBody, formatAddress, saveProfilePhoto };
+module.exports = { addressFromBody, saveProfilePhoto };

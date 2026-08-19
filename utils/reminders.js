@@ -126,4 +126,4 @@ function startReminderCron(deps) {
   cron.schedule("0 9 * * *", () => sendTomorrowReminders(deps).catch((error) => deps.logger.error({ err: error }, "Reminder cron failed")), { timezone: process.env.TZ || "Asia/Manila" });
 }
 
-module.exports = { appointmentExpiry, makeReminderToken, sendTomorrowReminders, startReminderCron, sendBookingConfirmationEmail };
+module.exports = { appointmentExpiry, startReminderCron, sendBookingConfirmationEmail, createReminderTransport };

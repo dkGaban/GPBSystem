@@ -983,6 +983,12 @@ html { scroll-behavior: smooth; }
   color: #ffffff;
 }
 
+.bookings-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .link-button {
   display: inline-flex;
   align-items: center;
@@ -1585,3 +1591,36 @@ html { scroll-behavior: smooth; }
 .unit-photo-link { display: grid; }
 .unit-photo-link img { width: 44px; height: 44px; object-fit: cover; border: 1px solid #dbe7f4; border-radius: 8px; background: #e2e8f0; }
 .unit-photo-link:hover img { border-color: #0a47a3; }
+
+/* Technician card */
+.technician-card { margin-top: 20px; border: 1px solid #dbe7f4; border-radius: 14px; background: linear-gradient(180deg, #fff, #fbfdff); overflow: hidden; box-shadow: 0 4px 14px rgba(15, 45, 88, .06); }
+.technician-card.hidden { display: none; }
+.technician-card-loading { padding: 16px; margin: 0; color: #64748b; font-size: 13px; text-align: center; }
+.technician-card-header { padding: 14px 18px; border-bottom: 1px solid #eef2f7; background: #f8fbff; }
+.technician-card-header h3 { margin: 0; color: #0f2d58; font-size: 16px; font-weight: 900; }
+.technician-card-body { padding: 18px; display: grid; gap: 18px; }
+.technician-info { display: grid; gap: 10px; }
+.technician-info-row { display: flex; align-items: center; gap: 12px; }
+.technician-info-label { color: #64748b; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; min-width: 52px; }
+.technician-info-row strong { color: #0f2d58; font-size: 15px; font-weight: 800; }
+.technician-phone-link { color: #0a47a3; font-size: 15px; font-weight: 800; text-decoration: none; }
+.technician-phone-link:hover { text-decoration: underline; }
+
+/* Status tracker */
+.technician-tracker { padding-top: 6px; border-top: 1px solid #eef2f7; }
+.technician-tracker-steps { display: flex; align-items: flex-start; gap: 0; }
+.technician-tracker-step { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; }
+.technician-tracker-dot { display: grid; width: 28px; height: 28px; place-items: center; border-radius: 50%; border: 2px solid #cbd5e1; background: #fff; color: #94a3b8; font-size: 12px; font-weight: 900; transition: all 200ms ease; }
+.technician-tracker-step.is-active .technician-tracker-dot { border-color: #0a47a3; background: #0a47a3; color: #fff; box-shadow: 0 2px 8px rgba(10, 71, 163, .25); }
+.technician-tracker-label { color: #94a3b8; font-size: 10px; font-weight: 700; text-align: center; line-height: 1.3; }
+.technician-tracker-step.is-active .technician-tracker-label { color: #0f2d58; }
+.technician-tracker-line { flex: 1; height: 2px; background: #cbd5e1; margin-top: 13px; min-width: 12px; }
+.technician-tracker-step.is-active ~ .technician-tracker-line,
+.technician-tracker-step.is-active + .technician-tracker-line { background: #0a47a3; }
+
+/* Warning state for Unable to Complete */
+.technician-tracker--warning { border-top: 1px solid #fecaca; background: #fff1f2; border-radius: 10px; padding: 14px 16px; }
+.technician-tracker-warning { display: flex; align-items: flex-start; gap: 12px; }
+.technician-tracker-warning-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: #fecaca; color: #b91c1c; font-size: 16px; font-weight: 900; flex-shrink: 0; }
+.technician-tracker-warning strong { color: #b91c1c; font-size: 14px; font-weight: 900; }
+.technician-tracker-warning p { margin: 4px 0 0; color: #991b1b; font-size: 12px; line-height: 1.5; }

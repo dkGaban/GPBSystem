@@ -208,6 +208,10 @@ export function getBookings() {
   return requestJson("/api/bookings");
 }
 
+export function getBookingTechnician(requestId) {
+  return requestJson(`/api/bookings/${requestId}/technician`);
+}
+
 export function createBooking(booking) {
   const payload = { ...booking, services: (booking.services || []).map((service) => ({
     id: service.id,
@@ -243,6 +247,13 @@ export function updateBookingStatus(id, status) {
 
 export function cancelBooking(id) {
   return requestJson(`/api/bookings/${id}/cancel`, { method: "PUT" });
+}
+
+export function rescheduleBooking(id, preferredDate, preferredTime) {
+  return requestJson(`/api/bookings/${id}/reschedule`, {
+    method: "PATCH",
+    body: JSON.stringify({ preferredDate, preferredTime })
+  });
 }
 
 export function updateTechnicianJobStatus(id, status, reason = "") {

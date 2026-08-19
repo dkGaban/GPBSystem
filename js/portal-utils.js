@@ -64,15 +64,6 @@ export function isStrongPassword(password) {
   return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(String(password || ""));
 }
 
-export function serviceList(label, value, marker) {
-  const items = String(value || "")
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  if (!items.length) return "";
-  return `<div class="service-list"><strong>${escapeHtml(label)}:</strong>${items.map((item) => `<span>${marker} ${escapeHtml(item)}</span>`).join("")}</div>`;
-}
-
 export function fileToDataUrl(input, existing = "") {
   const file = input.files?.[0];
   if (!file) return Promise.resolve(existing);

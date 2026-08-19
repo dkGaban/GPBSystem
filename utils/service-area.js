@@ -1,8 +1,3 @@
-const SERVICE_AREA_CITIES = [
-  "San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City",
-  "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"
-];
-
 const CITY_ALIASES = new Map([
   ["san fernando", "San Fernando"], ["naga", "Naga"], ["minglanilla", "Minglanilla"],
   ["talisay", "Talisay City"], ["talisay city", "Talisay City"], ["cebu", "Cebu City"],
@@ -24,4 +19,4 @@ function validateServiceArea({ city, latitude, longitude, requireCoordinates = f
   return "";
 }
 
-module.exports = { SERVICE_AREA_CITIES, normalizeServiceAreaCity, validateServiceArea };
+module.exports = { validateServiceArea };

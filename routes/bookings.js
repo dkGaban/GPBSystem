@@ -42,6 +42,25 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
     } catch (error) { sendInternalError(res, error, "Request failed"); }
   });
 
+  app.get("/api/bookings/:requestId/technician", requireUser, async (req, res) => {
+    if (req.user.role !== "customer") return res.status(403).json({ message: "Customer access required." });
+    try {
+      const pool = await getPool();
+      const result = await pool.request()
+        .input("RequestId", sql.Int, Number(req.params.requestId))
+        .input("Email", sql.NVarChar(150), req.user.email)
+        .query(`SELECT t.Name AS technicianName, t.PhoneNumber AS technicianPhone, b.Status AS status
+          FROM tblServiceRequest b
+          LEFT JOIN Schedules s ON s.BookingId = b.RequestID
+          LEFT JOIN Technicians t ON t.Id = s.TechnicianId
+          WHERE b.RequestID = @RequestId AND LOWER(b.Email) = LOWER(@Email)`);
+      if (!result.recordset.length) return res.status(404).json({ message: "Booking not found." });
+      const row = result.recordset[0];
+      if (!row.technicianName) return res.json({ assigned: false, status: row.status });
+      res.json({ assigned: true, technicianName: row.technicianName, technicianPhone: row.technicianPhone, status: row.status });
+    } catch (error) { sendInternalError(res, error, "Request failed"); }
+  });
+
   app.post("/api/bookings", requireUser, async (req, res) => {
     const { customer, phone, email, service, services = [], address, preferredDate, preferredTime, city, latitude, longitude } = req.body;
     const selectedServices = Array.isArray(services) && services.length ? services : String(service || "").split(",").map((item) => item.trim()).filter(Boolean);
@@ -225,6 +244,25 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
 
   app.put("/api/bookings/:id/status", requireUser, requireAdmin, async (req, res) => { const { status } = req.body; if (!status) return res.status(400).json({ message: "Status is required." }); try { const result = await (await getPool()).request().input("Id", sql.Int, Number(req.params.id)).input("Status", sql.NVarChar(50), status).query("UPDATE tblServiceRequest SET Status = @Status OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.ServiceName AS service, INSERTED.Address AS address, INSERTED.Status AS status WHERE RequestID = @Id"); if (!result.recordset.length) return res.status(404).json({ message: "Booking not found." }); await logAction(`Marked booking ${req.params.id} as ${status}`, actorName(req), "tblServiceRequest", req.params.id); res.json(result.recordset[0]); } catch (error) { sendInternalError(res, error, "Request failed"); } });
   app.put("/api/bookings/:id/technician-status", requireUser, async (req, res) => { const { status, reason = "" } = req.body; if (req.user.role !== "technician" && req.user.role !== "admin") return res.status(403).json({ message: "Technician access required." }); if (!["Scheduled", "In Progress", "Completed", "Unable to Complete"].includes(status)) return res.status(400).json({ message: "Choose a valid job status." }); if (status === "Unable to Complete" && !String(reason).trim()) return res.status(400).json({ message: "Please provide a reason before marking this job unable to complete." }); try { const result = await (await getPool()).request().input("Id", sql.Int, Number(req.params.id)).input("Status", sql.NVarChar(50), status).input("Reason", sql.NVarChar(500), status === "Unable to Complete" ? String(reason).trim() : null).query("UPDATE tblServiceRequest SET Status = @Status, UnableToCompleteReason = @Reason OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.ServiceName AS service, INSERTED.Address AS address, INSERTED.UnableToCompleteReason AS unableToCompleteReason, INSERTED.Status AS status WHERE RequestID = @Id"); if (!result.recordset.length) return res.status(404).json({ message: "Booking not found." }); await logAction(`Updated job ${req.params.id} to ${status}${status === "Unable to Complete" ? `: ${String(reason).trim()}` : ""}`, actorName(req), "tblServiceRequest", req.params.id); res.json(result.recordset[0]); } catch (error) { sendInternalError(res, error, "Request failed"); } });
-  app.put("/api/bookings/:id/cancel", requireUser, async (req, res) => { if (req.user.role !== "customer") return res.status(403).json({ message: "Customer access required." }); try { const pool = await getPool(); const booking = await pool.request().input("Id", sql.Int, Number(req.params.id)).input("Email", sql.NVarChar(150), req.user.email).query("SELECT RequestID AS Id, Status FROM tblServiceRequest WHERE RequestID = @Id AND LOWER(Email) = LOWER(@Email)"); if (!booking.recordset.length) return res.status(404).json({ message: "Booking not found." }); const feeApplies = booking.recordset[0].Status === "In Progress"; if (["Completed", "Cancelled"].includes(booking.recordset[0].Status)) return res.status(400).json({ message: "This booking can no longer be cancelled." }); await pool.request().input("Id", sql.Int, Number(req.params.id)).input("CancellationFeeApplies", sql.Bit, feeApplies ? 1 : 0).query("DELETE FROM Schedules WHERE BookingId = @Id; UPDATE tblServiceRequest SET Status = 'Cancelled', CancellationFeeApplies = @CancellationFeeApplies WHERE RequestID = @Id;"); await logAction(feeApplies ? `Cancelled booking ${req.params.id}; ₱450 cancellation fee applies because the technician is already on site` : `Cancelled booking ${req.params.id}`, actorName(req), "tblServiceRequest", req.params.id); res.json({ id: Number(req.params.id), status: "Cancelled" }); } catch (error) { sendInternalError(res, error, "Request failed"); } });
+  app.put("/api/bookings/:id/cancel", requireUser, async (req, res) => { if (req.user.role !== "customer") return res.status(403).json({ message: "Customer access required." }); try { const pool = await getPool(); const booking = await pool.request().input("Id", sql.Int, Number(req.params.id)).input("Email", sql.NVarChar(150), req.user.email).query("SELECT RequestID AS Id, Status FROM tblServiceRequest WHERE RequestID = @Id AND LOWER(Email) = LOWER(@Email)"); if (!booking.recordset.length) return res.status(404).json({ message: "Booking not found." }); const feeApplies = booking.recordset[0].Status === "In Progress"; if (["Completed", "Cancelled", "Rejected"].includes(booking.recordset[0].Status)) return res.status(400).json({ message: "This booking can no longer be cancelled." }); await pool.request().input("Id", sql.Int, Number(req.params.id)).input("CancellationFeeApplies", sql.Bit, feeApplies ? 1 : 0).query("DELETE FROM Schedules WHERE BookingId = @Id; UPDATE tblServiceRequest SET Status = 'Cancelled', CancellationFeeApplies = @CancellationFeeApplies WHERE RequestID = @Id;"); await logAction(feeApplies ? `Cancelled booking ${req.params.id}; ₱450 cancellation fee applies because the technician is already on site` : `Cancelled booking ${req.params.id}`, actorName(req), "tblServiceRequest", req.params.id); res.json({ id: Number(req.params.id), status: "Cancelled" }); } catch (error) { sendInternalError(res, error, "Request failed"); } });
+  app.patch("/api/bookings/:id/reschedule", requireUser, async (req, res) => {
+    if (req.user.role !== "customer") return res.status(403).json({ message: "Customer access required." });
+    const { preferredDate, preferredTime } = req.body;
+    if (!preferredDate || !preferredTime) return res.status(400).json({ message: "Choose a new date and time." });
+    if (isPastOrInvalidCalendarDate(preferredDate)) return res.status(400).json({ message: "Preferred date cannot be in the past." });
+    try {
+      const pool = await getPool();
+      const result = await pool.request().input("Id", sql.Int, Number(req.params.id)).input("Email", sql.NVarChar(150), req.user.email).query("SELECT RequestID AS id, Status AS status, RequestDate AS currentDate FROM tblServiceRequest WHERE RequestID = @Id AND LOWER(Email) = LOWER(@Email)");
+      if (!result.recordset.length) return res.status(404).json({ message: "Booking not found." });
+      const booking = result.recordset[0];
+      if (!["Scheduled", "In Progress"].includes(booking.status)) return res.status(400).json({ message: "Reschedule is only available for approved bookings with a confirmed appointment." });
+      const newDate = new Date(preferredDate); newDate.setHours(0, 0, 0, 0);
+      const currentDate = new Date(booking.currentDate); currentDate.setHours(0, 0, 0, 0);
+      if (newDate.getTime() === currentDate.getTime()) return res.status(400).json({ message: "Please choose a different date from your current schedule." });
+      await pool.request().input("Id", sql.Int, Number(req.params.id)).input("RequestDate", sql.Date, preferredDate).input("RequestTime", sql.NVarChar(50), preferredTime).query("UPDATE tblServiceRequest SET RequestDate = @RequestDate, RequestTime = @RequestTime WHERE RequestID = @Id");
+      await logAction(`Rescheduled booking ${req.params.id} to ${preferredDate} ${preferredTime}`, actorName(req), "tblServiceRequest", req.params.id);
+      res.json({ id: Number(req.params.id), preferredDate, preferredTime, status: booking.status });
+    } catch (error) { sendInternalError(res, error, "Reschedule failed"); }
+  });
   app.delete("/api/bookings/:id", requireUser, requireAdmin, async (req, res) => { try { const pool = await getPool(); await pool.request().input("Id", sql.Int, Number(req.params.id)).query("DELETE FROM Schedules WHERE BookingId = @Id; DELETE FROM tblServiceRequest WHERE RequestID = @Id;"); await logAction("Deleted a booking", actorName(req), "tblServiceRequest", req.params.id); res.status(204).end(); } catch (error) { sendInternalError(res, error, "Request failed"); } });
 };

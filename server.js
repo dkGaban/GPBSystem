@@ -8,7 +8,7 @@ const { getPool, initializeDatabase, sql } = require("./db");
 const logger = require("./utils/logger");
 const { createToken, readToken } = require("./utils/token");
 const { addressFromBody, saveProfilePhoto } = require("./utils/address");
-const { isValidPhilippineMobile, isStrongPassword, normalizeEmail, isValidEmail, validateTechnicianPayload, validateServicePayload } = require("./utils/validation");
+const { isValidPhilippineMobile, isStrongPassword, normalizeEmail, isValidEmail } = require("./utils/validation");
 const { actorName, createLogAction, sendInternalError: sendInternalErrorResponse } = require("./utils/audit");
 const { validateServiceArea } = require("./utils/service-area");
 const { startReminderCron } = require("./utils/reminders");
@@ -63,6 +63,7 @@ require("./routes/products")(app, routeDependencies);
 require("./routes/services")(app, routeDependencies);
 require("./routes/brands")(app, routeDependencies);
 require("./routes/excess-pipe")(app, routeDependencies);
+require("./routes/paymentsProducts")(app, routeDependencies);
 
 app.get("/api/health", async (req, res) => {
   try {

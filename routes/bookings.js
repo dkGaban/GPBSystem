@@ -298,7 +298,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
           excessFields.ExcessPipeRate = rate;
           excessFields.ExcessPipeCost = Number((excessPipeFeet * rate).toFixed(2));
         }
-        if (excessFields.ExcessPipeCost > 0 || additionalCost > 0) {
+        if (excessFields.ExcessPipeCost > 0 || additionalCost > 0 || proposedAmountPaid !== null) {
           const proposedTotal = Number((Number(booking.TotalAmount) + Number(excessFields.ExcessPipeCost || 0) + additionalCost).toFixed(2));
           const chargeResult = await pool.request()
             .input("RequestID", sql.Int, Number(req.params.id))

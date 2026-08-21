@@ -183,7 +183,7 @@ async function submitTechCompletion(event) {
     toast("Discount must be zero or a positive number.");
     return;
   }
-  if ((charges.excessPipeFeet > 0 || charges.additionalCost > 0) && amountPaid > 0) {
+  if (amountPaid > 0) {
     charges.amountPaid = amountPaid;
     charges.discount = discount;
   }
@@ -193,22 +193,14 @@ async function submitTechCompletion(event) {
     toast(error.message);
     return;
   }
-  if (charges.excessPipeFeet > 0 || charges.additionalCost > 0) {
+  if (charges.excessPipeFeet > 0 || charges.additionalCost > 0 || amountPaid > 0) {
     closeModals();
-    toast("Job completed. Payment can be recorded once an admin approves the extra charges.");
+    toast("Job completed. The technician payment or extra charges are pending admin approval.");
     await loadAll();
     return;
   }
-  if (amountPaid > 0) {
-    try {
-      await createServicePayment({ requestId: booking.id, amountPaid, discount });
-    } catch (error) {
-      toast(error.message);
-      return;
-    }
-  }
   closeModals();
-  toast(amountPaid > 0 ? "Job completed and payment recorded." : "Job completed.");
+  toast("Job completed.");
   await loadAll();
 }
 

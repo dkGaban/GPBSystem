@@ -11,6 +11,7 @@
     tailwind = { config: { corePlugins: { preflight: false } } };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -27,6 +28,7 @@
       <nav class="portal-nav">
         <button class="nav-link active" data-tab="dashboard"><span class="nav-icon icon-dashboard"></span>Dashboard</button>
         <button class="nav-link" data-tab="bookings"><span class="nav-icon icon-bookings"></span>Bookings</button>
+        <button class="nav-link" data-tab="payments"><span class="nav-icon icon-product"></span>Payments</button>
         <button class="nav-link" data-tab="schedules"><span class="nav-icon icon-schedule"></span>Schedules</button>
         <button class="nav-link" data-tab="services"><span class="nav-icon icon-service"></span>Services</button>
         <button class="nav-link" data-tab="products"><span class="nav-icon icon-product"></span>Products</button>
@@ -55,7 +57,7 @@
             </div>
             <table class="data-table">
               <thead>
-                <tr><th>ID</th><th>Customer</th><th>Service</th><th>Date</th><th>Status</th><th>Actions</th></tr>
+                <tr><th>ID</th><th>Customer</th><th>Service</th><th>Address</th><th>Date</th><th>Status</th><th>Actions</th></tr>
               </thead>
               <tbody id="recentBookingsBody"></tbody>
             </table>
@@ -102,9 +104,37 @@
         <section class="panel">
           <table class="data-table">
             <thead>
-              <tr><th>ID</th><th>Customer</th><th>Service</th><th>Schedule</th><th>Technician</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>ID</th><th>Customer</th><th>Service</th><th>Address</th><th>Schedule</th><th>Technician</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody id="bookingsBody"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <section id="paymentsTab" class="portal-tab hidden">
+        <div class="page-heading">
+          <div>
+            <h2>Payments</h2>
+            <p>Service payments recorded for completed bookings, including those collected by technicians.</p>
+          </div>
+        </div>
+        <section class="panel">
+          <h3>Pending technician charges</h3>
+          <p class="form-note">Review and approve extra charges submitted after job completion.</p>
+          <table class="data-table">
+            <thead>
+              <tr><th>Request ID</th><th>Customer</th><th>Service</th><th>Proposed Total</th><th>Technician</th><th>Actions</th></tr>
+            </thead>
+            <tbody id="pendingChargesBody"></tbody>
+          </table>
+        </section>
+        <section class="panel">
+          <h3>Recorded payments</h3>
+          <table class="data-table">
+            <thead>
+              <tr><th>Request ID</th><th>Customer</th><th>Service</th><th>Amount Paid</th><th>Discount</th><th>Received By</th><th>Assigned Technician</th><th>Date</th><th>Reference No</th></tr>
+            </thead>
+            <tbody id="paymentsBody"></tbody>
           </table>
         </section>
       </section>
@@ -144,12 +174,13 @@
               <div id="pricingSettingsContent">
                 <div id="pricingSettingsStatus" class="pricing-settings-status"></div>
                 <label class="form-field">
-                  <span>Excess pipe rate</span>
-                  <div class="pricing-settings-row">
-                    <span id="excessPipeRateDisplay" class="pricing-settings-rate">Loading...</span>
-                    <input id="excessPipeRateInput" type="number" min="0.01" step="0.01" placeholder="Rate per foot" class="pricing-settings-input" />
-                    <button type="button" class="primary-button" data-save-excess-pipe-rate="true">Save</button>
+                  <span>Excess pipe rates (by horsepower band)</span>
+                  <div id="excessPipeTiersList" class="space-y-2"></div>
+                  <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    <input id="newExcessTierHPower" placeholder="HPower band (e.g. 1hp - 1.5hp)" />
+                    <input id="newExcessTierAmount" type="number" min="0.01" step="0.01" placeholder="Rate per foot" />
                   </div>
+                  <button type="button" class="secondary-button" data-add-excess-pipe-tier="true">Add band</button>
                   <small class="pricing-settings-caption">Applied to Installation and Re-location bookings only.</small>
                 </label>
               </div>
@@ -325,7 +356,12 @@
 
   <div id="historyModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3 id="historyTitle">Service History</h3><button type="button" class="icon-button" data-close>x</button></div><div id="historyBody"></div></section></div>
 
+  <div id="mapModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3>Booking Location</h3><button type="button" class="icon-button" data-close>x</button></div><div id="adminBookingMap" class="booking-map-view"></div><p id="mapModalAddress" class="form-note"></p></section></div>
+
+  <div id="chargeModal" class="modal hidden"><section class="modal-card"><div class="modal-header"><h3>Review Technician Charges</h3><button type="button" class="icon-button" data-close>x</button></div><p id="chargeBookingLabel" class="form-note"></p><div id="chargeDetails"></div><div class="modal-actions"><button type="button" class="danger-button" id="rejectChargeButton">Reject Charges</button><button type="button" class="success-button" id="approveChargeButton">Approve Charges</button></div></section></div>
+
   <div id="toast" class="toast hidden"></div>
-  <script type="module" src="js/admin-page.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script type="module" src="js/admin-page.js?v=2"></script>
 </body>
 </html>

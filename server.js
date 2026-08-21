@@ -63,7 +63,8 @@ require("./routes/products")(app, routeDependencies);
 require("./routes/services")(app, routeDependencies);
 require("./routes/brands")(app, routeDependencies);
 require("./routes/excess-pipe")(app, routeDependencies);
-require("./routes/paymentsProducts")(app, routeDependencies);
+require("./routes/paymentsServices")(app, routeDependencies);
+require("./routes/jobCharges")(app, routeDependencies);
 
 app.get("/api/health", async (req, res) => {
   try {

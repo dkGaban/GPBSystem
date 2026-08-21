@@ -19,12 +19,15 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
       const request = pool.request();
       const customerFilter = req.user.role === "customer" ? "WHERE LOWER(b.Email) = LOWER(@Email)" : "";
       if (req.user.role === "customer") request.input("Email", sql.NVarChar(150), req.user.email);
-      const result = await request.query(`SELECT b.RequestID AS id, b.CustomerName AS customer, b.Phone AS phone, b.Email AS email, b.ServiceName AS service, b.Address AS address, b.UnableToCompleteReason AS unableToCompleteReason, CONVERT(varchar(10), b.RequestDate, 23) AS preferredDate, b.RequestTime AS preferredTime, b.TotalAmount AS totalAmount, b.Status AS status, t.Name AS technician, CONVERT(varchar(10), s.ScheduleDate, 23) AS scheduleDate, s.ScheduleTime AS scheduleTime FROM tblServiceRequest b LEFT JOIN Schedules s ON s.BookingId = b.RequestID LEFT JOIN Technicians t ON t.Id = s.TechnicianId ${customerFilter} ORDER BY b.RequestID DESC`);
+      const result = await request.query(`SELECT b.RequestID AS id, b.CustomerName AS customer, b.Phone AS phone, b.Email AS email, b.ServiceName AS service, b.Address AS address, b.UnableToCompleteReason AS unableToCompleteReason, CONVERT(varchar(10), b.RequestDate, 23) AS preferredDate, b.RequestTime AS preferredTime, b.TotalAmount AS totalAmount, b.Status AS status, b.Latitude AS latitude, b.Longitude AS longitude, t.Name AS technician, CONVERT(varchar(10), s.ScheduleDate, 23) AS scheduleDate, s.ScheduleTime AS scheduleTime, b.FinalAmount AS finalAmount, b.ExcessPipeFeet AS excessPipeFeet, b.ExcessPipeCost AS excessPipeCost, p.PaymentID AS paymentId, p.AmountPaid AS amountPaid, p.Discount AS discount, p.ReferenceNo AS referenceNo, cc.ChargeID AS chargeId, cc.Status AS chargeStatus, cc.ExcessPipeFeet AS chargeExcessFeet, cc.ExcessPipeCost AS chargeExcessCost, cc.AdditionalDescription AS chargeAdditionalDescription, cc.AdditionalCost AS chargeAdditionalCost, cc.ProposedTotal AS chargeProposedTotal, cc.ProposedAmountPaid AS chargeProposedAmountPaid, cc.ProposedDiscount AS chargeProposedDiscount FROM tblServiceRequest b LEFT JOIN Schedules s ON s.BookingId = b.RequestID LEFT JOIN Technicians t ON t.Id = s.TechnicianId LEFT JOIN tblPayment p ON p.RequestID = b.RequestID OUTER APPLY (SELECT TOP 1 c.ChargeID, c.Status, c.ExcessPipeFeet, c.ExcessPipeCost, c.AdditionalDescription, c.AdditionalCost, c.ProposedTotal, c.ProposedAmountPaid, c.ProposedDiscount FROM tblJobCharge c WHERE c.RequestID = b.RequestID ORDER BY c.ChargeID DESC) cc ${customerFilter} ORDER BY b.RequestID DESC`);
       const bookings = result.recordset;
+      if (req.user.role === "customer") {
+        bookings.forEach((booking) => { delete booking.finalAmount; delete booking.excessPipeFeet; delete booking.excessPipeCost; delete booking.paymentId; delete booking.amountPaid; delete booking.discount; delete booking.referenceNo; delete booking.chargeId; delete booking.chargeStatus; delete booking.chargeExcessFeet; delete booking.chargeExcessCost; delete booking.chargeAdditionalDescription; delete booking.chargeAdditionalCost; delete booking.chargeProposedTotal; delete booking.chargeProposedAmountPaid; delete booking.chargeProposedDiscount; });
+      }
       if (bookings.length) {
         const ids = bookings.map((booking) => Number(booking.id)).filter((id) => Number.isInteger(id) && id > 0);
         if (ids.length) {
-          const detailsResult = await pool.request().query(`SELECT sd.RequestID AS requestId, sd.Quantity AS quantity, sd.Description AS description, sd.UPrice AS uPrice, sd.SubTotal AS subTotal, cu.Photos AS photos FROM tblServiceDetails sd LEFT JOIN tblCustomerUnit cu ON cu.CUnitID = sd.CUnitID WHERE sd.RequestID IN (${ids.join(",")})`);
+          const detailsResult = await pool.request().query(`SELECT sd.RequestID AS requestId, sd.Quantity AS quantity, sd.Description AS description, sd.UPrice AS uPrice, sd.SubTotal AS subTotal, cu.Photos AS photos, cu.AirconType AS airconType, cu.Technology AS technology, cu.HorsePower AS horsePower, br.Name AS brandName FROM tblServiceDetails sd LEFT JOIN tblCustomerUnit cu ON cu.CUnitID = sd.CUnitID LEFT JOIN tblBrand br ON br.BrandID = cu.BrandID WHERE sd.RequestID IN (${ids.join(",")})`);
           const unitsByRequest = new Map();
           detailsResult.recordset.forEach((row) => {
             if (!unitsByRequest.has(row.requestId)) unitsByRequest.set(row.requestId, []);
@@ -33,7 +36,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
               const parsed = JSON.parse(row.photos || "[]");
               if (Array.isArray(parsed)) photos = parsed.filter((photo) => typeof photo === "string");
             } catch { photos = []; }
-            unitsByRequest.get(row.requestId).push({ quantity: row.quantity, description: row.description, uPrice: row.uPrice, subTotal: row.subTotal, photos });
+            unitsByRequest.get(row.requestId).push({ quantity: row.quantity, description: row.description, uPrice: row.uPrice, subTotal: row.subTotal, photos, brandName: row.brandName || null, airconType: row.airconType || null, technology: row.technology || null, horsePower: row.horsePower ?? null });
           });
           bookings.forEach((booking) => { booking.units = unitsByRequest.get(booking.id) || []; });
         }
@@ -114,21 +117,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
           const match = await matchServicePrice(pool, sql, service.Id, horsePower, technology, airconType);
           if (!match) { const error = new Error("Unable to match a price for one of the selected units."); error.statusCode = 400; throw error; }
           let amount = Number(match.amount);
-          let excessNote = "";
-          const serviceType = String(service.Type || "").trim().toLowerCase();
-          if (serviceType === "installation" || serviceType === "re-location") {
-            const rawExcessFeet = unit.excessPipeFeet;
-            if (rawExcessFeet !== undefined && rawExcessFeet !== null && String(rawExcessFeet).trim() !== "") {
-              const excessFeet = Number(rawExcessFeet);
-              if (!Number.isInteger(excessFeet) || excessFeet <= 0) { const error = new Error("Excess pipe length must be a positive whole number."); error.statusCode = 400; throw error; }
-              const rateMatch = await getExcessPipeRate(pool, sql);
-              if (!rateMatch) { const error = new Error("Unable to verify the excess pipe rate for this unit."); error.statusCode = 400; throw error; }
-              const rate = Number(rateMatch.ratePerFoot);
-              amount = Number((amount + excessFeet * rate).toFixed(2));
-              excessNote = ` + ${excessFeet}ft excess pipe (₱${rate.toFixed(2)}/ft)`;
-            }
-          }
-          preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount, excessNote, photos: Array.isArray(unit.photos) ? unit.photos : [] });
+          preparedUnits.push({ airconType, technology, horsePower, brandId, quantity, amount, photos: Array.isArray(unit.photos) ? unit.photos : [] });
         }
         return { ...service, units: preparedUnits, total: preparedUnits.length ? preparedUnits.reduce((sum, unit) => sum + unit.amount * unit.quantity, 0) : Number(service.Price || 0) };
       }));
@@ -178,7 +167,7 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
               .query("INSERT INTO tblCustomerUnit (CustomerID, BrandID, AirconType, Technology, HorsePower, Photos) OUTPUT INSERTED.CUnitID AS id VALUES (@CustomerID, @BrandID, @AirconType, @Technology, @HorsePower, @Photos)");
             const cUnitId = customerUnit.recordset[0].id;
             const repairContext = [unit.airconType, unit.brandName, unit.technology].filter(Boolean).join(", ");
-            const description = unit.problem ? ["Repair", repairContext, unit.problem].filter(Boolean).join(" \\u2014 ") : `${unit.airconType} ${unit.technology} ${unit.horsePower}HP${unit.excessNote || ""}`;
+            const description = unit.problem ? ["Repair", repairContext, unit.problem].filter(Boolean).join(" \u2014 ") : `${unit.airconType} ${unit.technology} ${unit.horsePower}HP`;
             await transaction.request().input("RequestID", sql.Int, requestId).input("CUnitID", sql.Int, cUnitId)
               .input("Quantity", sql.Int, unit.quantity).input("Description", sql.NVarChar(500), description)
               .input("UPrice", sql.Decimal(10, 2), unit.amount).input("SubTotal", sql.Decimal(10, 2), unit.amount * unit.quantity)
@@ -242,8 +231,106 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
     } catch (error) { sendInternalError(res, error, "Reminder reschedule failed"); }
   });
 
-  app.put("/api/bookings/:id/status", requireUser, requireAdmin, async (req, res) => { const { status } = req.body; if (!status) return res.status(400).json({ message: "Status is required." }); try { const result = await (await getPool()).request().input("Id", sql.Int, Number(req.params.id)).input("Status", sql.NVarChar(50), status).query("UPDATE tblServiceRequest SET Status = @Status OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.ServiceName AS service, INSERTED.Address AS address, INSERTED.Status AS status WHERE RequestID = @Id"); if (!result.recordset.length) return res.status(404).json({ message: "Booking not found." }); await logAction(`Marked booking ${req.params.id} as ${status}`, actorName(req), "tblServiceRequest", req.params.id); res.json(result.recordset[0]); } catch (error) { sendInternalError(res, error, "Request failed"); } });
-  app.put("/api/bookings/:id/technician-status", requireUser, async (req, res) => { const { status, reason = "" } = req.body; if (req.user.role !== "technician" && req.user.role !== "admin") return res.status(403).json({ message: "Technician access required." }); if (!["Scheduled", "In Progress", "Completed", "Unable to Complete"].includes(status)) return res.status(400).json({ message: "Choose a valid job status." }); if (status === "Unable to Complete" && !String(reason).trim()) return res.status(400).json({ message: "Please provide a reason before marking this job unable to complete." }); try { const result = await (await getPool()).request().input("Id", sql.Int, Number(req.params.id)).input("Status", sql.NVarChar(50), status).input("Reason", sql.NVarChar(500), status === "Unable to Complete" ? String(reason).trim() : null).query("UPDATE tblServiceRequest SET Status = @Status, UnableToCompleteReason = @Reason OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.ServiceName AS service, INSERTED.Address AS address, INSERTED.UnableToCompleteReason AS unableToCompleteReason, INSERTED.Status AS status WHERE RequestID = @Id"); if (!result.recordset.length) return res.status(404).json({ message: "Booking not found." }); await logAction(`Updated job ${req.params.id} to ${status}${status === "Unable to Complete" ? `: ${String(reason).trim()}` : ""}`, actorName(req), "tblServiceRequest", req.params.id); res.json(result.recordset[0]); } catch (error) { sendInternalError(res, error, "Request failed"); } });
+  app.put("/api/bookings/:id/status", requireUser, requireAdmin, async (req, res) => { const { status } = req.body; if (!["Approved", "Rejected"].includes(status)) return res.status(400).json({ message: "Choose Approved or Rejected." }); try { const result = await (await getPool()).request().input("Id", sql.Int, Number(req.params.id)).input("Status", sql.NVarChar(50), status).query("UPDATE tblServiceRequest SET Status = @Status OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.ServiceName AS service, INSERTED.Address AS address, INSERTED.Status AS status WHERE RequestID = @Id AND Status = 'Pending'"); if (!result.recordset.length) return res.status(409).json({ message: "Booking not found." }); await logAction(`Marked booking ${req.params.id} as ${status}`, actorName(req), "tblServiceRequest", req.params.id); res.json(result.recordset[0]); } catch (error) { sendInternalError(res, error, "Request failed"); } });
+  async function excessPipeEligible(pool, requestId, serviceName) {
+    const types = await pool.request().input("RequestId", sql.Int, requestId)
+      .query("SELECT DISTINCT s.Type AS type FROM tblServiceRequest b JOIN tblService s ON CHARINDEX(s.Type + N' - ' + s.Name, b.ServiceName) > 0 WHERE b.RequestID = @RequestId");
+    if (types.recordset.length) return types.recordset.some((row) => ["installation", "re-location"].includes(String(row.type || "").trim().toLowerCase()));
+    const label = String(serviceName || "").toLowerCase();
+    return label.includes("install") || label.includes("relocat");
+  }
+
+  app.put("/api/bookings/:id/technician-status", requireUser, async (req, res) => {
+    const { status, reason = "" } = req.body;
+    if (!status) return res.status(400).json({ message: "Status is required." });
+    if (req.user.role !== "technician" && req.user.role !== "admin") return res.status(403).json({ message: "Technician access required." });
+    if (!["Scheduled", "In Progress", "Completed", "Unable to Complete"].includes(status)) return res.status(400).json({ message: "Choose a valid job status." });
+    if (status === "Unable to Complete" && !String(reason).trim()) return res.status(400).json({ message: "Please provide a reason before marking this job unable to complete." });
+    const rawExcessFeet = req.body.excessPipeFeet;
+    const hasExcessInput = rawExcessFeet !== undefined && rawExcessFeet !== null && String(rawExcessFeet).trim() !== "";
+    let excessPipeFeet = 0;
+    if (hasExcessInput) {
+      excessPipeFeet = Number(rawExcessFeet);
+      if (!Number.isInteger(excessPipeFeet) || excessPipeFeet < 0) return res.status(400).json({ message: "Excess pipe length must be a positive whole number." });
+    }
+    const excessPipeHPower = String(req.body.excessPipeHPower ?? "").trim();
+    if (excessPipeFeet > 0 && !excessPipeHPower) return res.status(400).json({ message: "Select the horsepower band for the excess pipe." });
+    const rawAdditionalCost = req.body.additionalCost;
+    const hasAdditionalCost = rawAdditionalCost !== undefined && rawAdditionalCost !== null && String(rawAdditionalCost).trim() !== "";
+    let additionalCost = 0;
+    if (hasAdditionalCost) {
+      additionalCost = Number(rawAdditionalCost);
+      if (!Number.isFinite(additionalCost) || additionalCost < 0) return res.status(400).json({ message: "Additional cost must be zero or a positive number." });
+    }
+    const additionalDescription = String(req.body.additionalDescription || "").trim();
+    if (additionalDescription.length > 500) return res.status(400).json({ message: "The additional work description must be 500 characters or fewer." });
+    if (additionalCost > 0 && !additionalDescription) return res.status(400).json({ message: "Please describe the additional work before adding its cost." });
+    const rawProposedAmount = req.body.amountPaid;
+    const hasProposedAmount = rawProposedAmount !== undefined && rawProposedAmount !== null && String(rawProposedAmount).trim() !== "";
+    let proposedAmountPaid = null;
+    if (hasProposedAmount) {
+      proposedAmountPaid = Number(rawProposedAmount);
+      if (!Number.isFinite(proposedAmountPaid) || proposedAmountPaid <= 0) return res.status(400).json({ message: "Amount paid must be a positive number." });
+    }
+    const rawProposedDiscount = req.body.discount;
+    const hasProposedDiscount = rawProposedDiscount !== undefined && rawProposedDiscount !== null && String(rawProposedDiscount).trim() !== "";
+    let proposedDiscount = null;
+    if (hasProposedDiscount) {
+      proposedDiscount = Number(rawProposedDiscount);
+      if (!Number.isFinite(proposedDiscount) || proposedDiscount < 0) return res.status(400).json({ message: "Discount must be zero or a positive number." });
+    }
+    try {
+      const pool = await getPool();
+      const bookingResult = await pool.request().input("Id", sql.Int, Number(req.params.id))
+        .query("SELECT TOP 1 RequestID, ServiceName, TotalAmount FROM tblServiceRequest WHERE RequestID = @Id");
+      if (!bookingResult.recordset.length) return res.status(404).json({ message: "Booking not found." });
+      const booking = bookingResult.recordset[0];
+      const excessFields = {};
+      let chargeReport = null;
+      if (status === "Completed") {
+        const eligible = await excessPipeEligible(pool, Number(req.params.id), booking.ServiceName);
+        if (excessPipeFeet > 0 && !eligible) return res.status(400).json({ message: "Excess pipe only applies to Installation and Re-location services." });
+        if (eligible && excessPipeFeet > 0) {
+          const rateMatch = await getExcessPipeRate(pool, sql, excessPipeHPower);
+          if (!rateMatch) return res.status(400).json({ message: "No excess pipe rate matches that horsepower band. Please contact an administrator." });
+          const rate = Number(rateMatch.ratePerFoot);
+          excessFields.ExcessPipeFeet = excessPipeFeet;
+          excessFields.ExcessPipeRate = rate;
+          excessFields.ExcessPipeCost = Number((excessPipeFeet * rate).toFixed(2));
+        }
+        if (excessFields.ExcessPipeCost > 0 || additionalCost > 0) {
+          const proposedTotal = Number((Number(booking.TotalAmount) + Number(excessFields.ExcessPipeCost || 0) + additionalCost).toFixed(2));
+          const chargeResult = await pool.request()
+            .input("RequestID", sql.Int, Number(req.params.id))
+            .input("ExcessPipeFeet", sql.Int, excessFields.ExcessPipeFeet ?? null)
+            .input("ExcessPipeRate", sql.Decimal(10, 2), excessFields.ExcessPipeRate ?? null)
+            .input("ExcessPipeCost", sql.Decimal(10, 2), excessFields.ExcessPipeCost ?? null)
+            .input("AdditionalDescription", sql.NVarChar(500), additionalDescription || null)
+            .input("AdditionalCost", sql.Decimal(10, 2), additionalCost)
+            .input("ProposedTotal", sql.Decimal(10, 2), proposedTotal)
+            .input("ProposedAmountPaid", sql.Decimal(10, 2), proposedAmountPaid)
+            .input("ProposedDiscount", sql.Decimal(10, 2), proposedDiscount)
+            .input("SubmittedBy", sql.NVarChar(100), actorName(req))
+            .query("INSERT INTO tblJobCharge (RequestID, ExcessPipeFeet, ExcessPipeRate, ExcessPipeCost, AdditionalDescription, AdditionalCost, ProposedTotal, ProposedAmountPaid, ProposedDiscount, Status, SubmittedBy) OUTPUT INSERTED.ChargeID AS chargeId, INSERTED.ProposedTotal AS proposedTotal VALUES (@RequestID, @ExcessPipeFeet, @ExcessPipeRate, @ExcessPipeCost, @AdditionalDescription, @AdditionalCost, @ProposedTotal, @ProposedAmountPaid, @ProposedDiscount, 'Pending', @SubmittedBy)");
+          chargeReport = chargeResult.recordset[0];
+        } else {
+          excessFields.FinalAmount = Number((Number(booking.TotalAmount) + Number(excessFields.ExcessPipeCost || 0)).toFixed(2));
+        }
+      }
+      const updateRequest = pool.request()
+        .input("Id", sql.Int, Number(req.params.id))
+        .input("Status", sql.NVarChar(50), status)
+        .input("Reason", sql.NVarChar(500), status === "Unable to Complete" ? String(reason).trim() : null);
+      let setSql = "Status = @Status, UnableToCompleteReason = @Reason";
+      if (excessFields.FinalAmount !== undefined) {
+        updateRequest.input("FinalAmount", sql.Decimal(10, 2), excessFields.FinalAmount);
+        setSql += ", FinalAmount = @FinalAmount";
+      }
+      const result = await updateRequest.query(`UPDATE tblServiceRequest SET ${setSql} OUTPUT INSERTED.RequestID AS id, INSERTED.CustomerName AS customer, INSERTED.ServiceName AS service, INSERTED.Address AS address, INSERTED.UnableToCompleteReason AS unableToCompleteReason, INSERTED.Status AS status, INSERTED.FinalAmount AS finalAmount, INSERTED.ExcessPipeCost AS excessPipeCost WHERE RequestID = @Id`);
+      await logAction(`Updated job ${req.params.id} to ${status}${status === "Unable to Complete" ? `: ${String(reason).trim()}` : ""}${excessFields.ExcessPipeCost ? ` with ${excessFields.ExcessPipeFeet}ft excess pipe (₱${Number(excessFields.ExcessPipeCost).toFixed(2)})` : ""}${chargeReport ? `; submitted additional charges (proposed total ₱${Number(chargeReport.proposedTotal).toFixed(2)}) for admin approval` : ""}`, actorName(req), "tblServiceRequest", req.params.id);
+      res.json(result.recordset[0]);
+    } catch (error) { sendInternalError(res, error, "Request failed"); }
+  });
   app.put("/api/bookings/:id/cancel", requireUser, async (req, res) => { if (req.user.role !== "customer") return res.status(403).json({ message: "Customer access required." }); try { const pool = await getPool(); const booking = await pool.request().input("Id", sql.Int, Number(req.params.id)).input("Email", sql.NVarChar(150), req.user.email).query("SELECT RequestID AS Id, Status FROM tblServiceRequest WHERE RequestID = @Id AND LOWER(Email) = LOWER(@Email)"); if (!booking.recordset.length) return res.status(404).json({ message: "Booking not found." }); const feeApplies = booking.recordset[0].Status === "In Progress"; if (["Completed", "Cancelled", "Rejected"].includes(booking.recordset[0].Status)) return res.status(400).json({ message: "This booking can no longer be cancelled." }); await pool.request().input("Id", sql.Int, Number(req.params.id)).input("CancellationFeeApplies", sql.Bit, feeApplies ? 1 : 0).query("DELETE FROM Schedules WHERE BookingId = @Id; UPDATE tblServiceRequest SET Status = 'Cancelled', CancellationFeeApplies = @CancellationFeeApplies WHERE RequestID = @Id;"); await logAction(feeApplies ? `Cancelled booking ${req.params.id}; ₱450 cancellation fee applies because the technician is already on site` : `Cancelled booking ${req.params.id}`, actorName(req), "tblServiceRequest", req.params.id); res.json({ id: Number(req.params.id), status: "Cancelled" }); } catch (error) { sendInternalError(res, error, "Request failed"); } });
   app.patch("/api/bookings/:id/reschedule", requireUser, async (req, res) => {
     if (req.user.role !== "customer") return res.status(403).json({ message: "Customer access required." });

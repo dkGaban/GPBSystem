@@ -1,34 +1,39 @@
 import {
+  approveJobCharge,
   createCustomer,
   createProduct,
   createSchedule,
   createService,
   createServicePriceTier,
   createTechnician,
+  createExcessPipeRateTier,
   getBookings,
   getBrands,
-  getExcessPipeRate,
+  getExcessPipeRates,
   getProductServices,
   getCustomers,
   getLogs,
   getProducts,
+  getServicePayments,
   getServices,
   getTechnicians,
+  rejectJobCharge,
   removeBooking,
   removeCustomer,
   removeProduct,
   removeService,
   removeServicePriceTier,
   removeTechnician,
+  removeExcessPipeRateTier,
   updateBookingStatus,
   updateCustomer,
-  updateExcessPipeRate,
   updateProduct,
   updateService,
   updateServicePriceTier,
-  updateTechnician
+  updateTechnician,
+  updateExcessPipeRateTier
 } from "./api.js";
-import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, peso, renderProducts, renderUnitPhotosMarkup, requireRole, statusBadge, toast } from "./portal-utils.js";
+import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, peso, renderProducts, renderUnitDetailsMarkup, renderUnitPhotosMarkup, requireRole, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("admin");
 let services = [];
@@ -40,7 +45,7 @@ let logs = [];
 let brands = [];
 let productLines = [];
 let productServices = [];
-let excessPipeRate = null;
+let payments = [];
 
 const $ = (id) => document.getElementById(id);
 
@@ -67,14 +72,15 @@ async function loadAll() {
   const settle = async (label, fn) => {
     try { return await fn(); } catch (error) { console.error(`Failed to load ${label}:`, error); return null; }
   };
-  const [s, p, t, c, b, l, br] = await Promise.all([
+  const [s, p, t, c, b, l, br, pay] = await Promise.all([
     settle("services", getServices),
     settle("products", getProducts),
     settle("technicians", getTechnicians),
     settle("customers", getCustomers),
     settle("bookings", getBookings),
     settle("logs", getLogs),
-    settle("brands", getBrands)
+    settle("brands", getBrands),
+    settle("payments", getServicePayments)
   ]);
   if (s) services = s;
   if (p) products = p;
@@ -83,10 +89,12 @@ async function loadAll() {
   if (b) bookings = b;
   if (l) logs = l;
   if (br) brands = br;
+  if (pay) payments = pay;
   render();
 }
 
 function render() {
+  renderPendingCharges();
   renderStats();
   renderBookings();
   renderServices();
@@ -95,6 +103,7 @@ function render() {
   renderCustomers();
   renderSchedules();
   renderLogs();
+  renderPayments();
   renderAssignmentPreview();
   renderBookingMonitor();
 }
@@ -120,8 +129,8 @@ function renderStats() {
 
 function bookingRows(items) {
   return items.length
-    ? items.map((booking) => `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}${renderUnitPhotosMarkup(booking.units)}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}</td><td><button class="tiny-button success-button" data-approve="${booking.id}">Approve</button><button class="tiny-button warning-button" data-reject="${booking.id}">Reject</button></td></tr>`).join("")
-    : `<tr><td colspan="7" class="text-center text-slate-500">No bookings yet.</td></tr>`;
+    ? items.map((booking) => { const canReviewBooking = booking.status === "Pending"; return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}${renderUnitDetailsMarkup(booking.units)}${renderUnitPhotosMarkup(booking.units)}</td><td class="pre-line">${escapeHtml(booking.address || "—")}</td><td>${escapeHtml([booking.preferredDate, booking.preferredTime].filter(Boolean).join(" "))}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}${booking.chargeStatus === "Pending" ? `<small class="job-reason">Charges pending approval — proposed total ${peso(booking.chargeProposedTotal)}</small>` : ""}${booking.status === "Completed" && booking.chargeStatus !== "Pending" ? `<small class="job-reason">Final amount: ${peso(booking.finalAmount ?? booking.totalAmount)}</small>` : ""}</td><td>${canReviewBooking ? `<button class="tiny-button success-button" data-approve="${booking.id}">Approve</button><button class="tiny-button warning-button" data-reject="${booking.id}">Reject</button>` : ""}<button class="tiny-button secondary-button" data-view-map="${booking.id}">View on map</button></td></tr>`; }).join("")
+    : `<tr><td colspan="8" class="text-center text-slate-500">No bookings yet.</td></tr>`;
 }
 
 function renderBookings() {
@@ -237,6 +246,19 @@ function renderLogs() {
     : `<tr><td colspan="4" class="text-center text-slate-500">No logs yet.</td></tr>`;
 }
 
+function renderPendingCharges() {
+  const pending = bookings.filter((booking) => booking.chargeStatus === "Pending");
+  $("pendingChargesBody").innerHTML = pending.length
+    ? pending.map((booking) => `<tr><td>#${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}</td><td>${peso(booking.chargeProposedTotal)}</td><td>${escapeHtml(booking.technician || "Unassigned")}</td><td><button class="tiny-button secondary-button" data-review-charges="${booking.chargeId}">Review Charges</button></td></tr>`).join("")
+    : `<tr><td colspan="6" class="text-center text-slate-500">No pending technician charges.</td></tr>`;
+}
+
+function renderPayments() {
+  document.getElementById("paymentsBody").innerHTML = payments.length
+    ? payments.map((payment) => `<tr><td>#${payment.requestId}</td><td>${escapeHtml(payment.customer)}</td><td>${escapeHtml(payment.service)}</td><td>${peso(payment.amountPaid)}</td><td>${peso(payment.discount)}</td><td>${escapeHtml(payment.receivedBy)}</td><td>${escapeHtml(payment.assignedTechnician || "Unassigned")}</td><td>${new Date(payment.date).toLocaleString()}</td><td>${escapeHtml(payment.referenceNo)}</td></tr>`).join("")
+    : `<tr><td colspan="9" class="text-center text-slate-500">No payments recorded yet.</td></tr>`;
+}
+
 function renderAssignmentPreview() {
   const pending = bookings.filter((booking) => !booking.technician).slice(0, 3);
   document.getElementById("assignmentPreview").innerHTML = pending.length
@@ -256,7 +278,8 @@ function renderBookingMonitor() {
     .join("") + `<div class="monitor-total"><span>Total Bookings</span><strong>${bookings.length}</strong></div>`;
 }
 
-let excessPipeRateLoaded = false;
+let excessPipeTiersLoaded = false;
+let excessPipeTiers = [];
 
 function getPricingStatus() {
   return $("pricingSettingsStatus");
@@ -275,36 +298,67 @@ function clearPricingStatus() {
 }
 
 async function loadExcessPipeRate() {
-  const display = $("excessPipeRateDisplay");
-  if (display) display.textContent = "Loading...";
   clearPricingStatus();
   try {
-    const result = await getExcessPipeRate();
-    excessPipeRate = result;
-    excessPipeRateLoaded = true;
-    renderExcessPipeRate();
+    excessPipeTiers = await getExcessPipeRates();
+    excessPipeTiersLoaded = true;
+    renderExcessPipeTiers();
+    clearPricingStatus();
   } catch (error) {
     console.error("loadExcessPipeRate failed:", error);
-    const notConfigured = /not configured/i.test(error.message);
-    if (notConfigured) {
-      excessPipeRateLoaded = true;
-      renderExcessPipeRate();
-      setPricingStatus("No rate has been configured yet — set one below.", "muted");
-    } else {
-      const detail = error.status ? `${error.message} (HTTP ${error.status})` : error.message;
-      renderExcessPipeRate();
-      setPricingStatus(`Could not load current rate: ${detail} <button type="button" class="tiny-button secondary-button" data-reload-excess-pipe-rate="true">Retry</button>`, "error");
-    }
+    const detail = error.status ? `${error.message} (HTTP ${error.status})` : error.message;
+    renderExcessPipeTiers();
+    setPricingStatus(`Could not load excess pipe bands: ${detail} <button type="button" class="tiny-button secondary-button" data-reload-excess-pipe-rate="true">Retry</button>`, "error");
   }
 }
 
-function renderExcessPipeRate() {
-  const display = $("excessPipeRateDisplay");
-  if (!display) return;
-  const rate = excessPipeRate?.ratePerFoot;
-  display.textContent = rate != null ? peso(rate) + " per ft" : "Not set";
-  const input = $("excessPipeRateInput");
-  if (input) input.value = rate != null ? rate : "";
+function renderExcessPipeTiers() {
+  const list = $("excessPipeTiersList");
+  if (!list) return;
+  list.innerHTML = excessPipeTiers.length
+    ? excessPipeTiers.map((tier) => `<div class="grid grid-cols-1 items-center gap-2 rounded-lg border border-slate-200 p-2 md:grid-cols-[1fr_1fr_auto_auto]"><input id="excessTierHPower-${tier.id}" value="${escapeHtml(tier.hPower || "")}" placeholder="HPower band" /><input id="excessTierAmount-${tier.id}" type="number" min="0.01" step="0.01" value="${escapeHtml(tier.ratePerFoot ?? "")}" placeholder="Rate per foot" /><button type="button" class="tiny-button secondary-button" data-save-excess-pipe-tier="${tier.id}">Save</button><button type="button" class="tiny-button danger-button" data-delete-excess-pipe-tier="${tier.id}">Delete</button></div>`).join("")
+    : `<p class="empty-note">No excess pipe bands yet.</p>`;
+  $("newExcessTierHPower").value = "";
+  $("newExcessTierAmount").value = "";
+}
+
+function readExcessTierPayload(hPower, ratePerFoot) {
+  const payload = { hPower: hPower.trim(), ratePerFoot: ratePerFoot.trim() };
+  if (!payload.hPower) { toast("Horsepower band label is required."); return null; }
+  if (!payload.ratePerFoot || !Number.isFinite(Number(payload.ratePerFoot)) || Number(payload.ratePerFoot) <= 0) { toast("Rate per foot must be a positive number."); return null; }
+  return payload;
+}
+
+async function addExcessPipeTier() {
+  const payload = readExcessTierPayload($("newExcessTierHPower").value, $("newExcessTierAmount").value);
+  if (!payload) return;
+  try {
+    const tier = await createExcessPipeRateTier(payload);
+    excessPipeTiers = [...excessPipeTiers, tier];
+    renderExcessPipeTiers();
+    toast("Excess pipe band added.");
+  } catch (error) { toast(error.message); }
+}
+
+async function saveExcessPipeTier(tierId) {
+  const payload = readExcessTierPayload($(`excessTierHPower-${tierId}`).value, $(`excessTierAmount-${tierId}`).value);
+  if (!payload) return;
+  try {
+    const tier = await updateExcessPipeRateTier(tierId, payload);
+    excessPipeTiers = excessPipeTiers.map((item) => String(item.id) === String(tierId) ? tier : item);
+    renderExcessPipeTiers();
+    toast("Excess pipe band updated.");
+  } catch (error) { toast(error.message); }
+}
+
+async function deleteExcessPipeTier(tierId) {
+  if (!confirm("Delete this excess pipe band?")) return;
+  try {
+    await removeExcessPipeRateTier(tierId);
+    excessPipeTiers = excessPipeTiers.filter((item) => String(item.id) !== String(tierId));
+    renderExcessPipeTiers();
+    toast("Excess pipe band deleted.");
+  } catch (error) { toast(error.message); }
 }
 
 function togglePricingSettings() {
@@ -314,25 +368,7 @@ function togglePricingSettings() {
   const isHidden = body.classList.contains("hidden");
   body.classList.toggle("hidden");
   card.classList.toggle("open");
-  if (isHidden && !excessPipeRateLoaded) loadExcessPipeRate();
-}
-
-async function saveExcessPipeRateInline() {
-  const input = $("excessPipeRateInput");
-  const rate = Number(input?.value);
-  if (!Number.isFinite(rate) || rate <= 0) { toast("Rate per foot must be a positive number."); return; }
-  try {
-    const updated = await updateExcessPipeRate(rate);
-    excessPipeRate = updated;
-    excessPipeRateLoaded = true;
-    renderExcessPipeRate();
-    clearPricingStatus();
-    toast("Excess pipe rate updated.");
-  } catch (error) {
-    console.error("saveExcessPipeRateInline failed:", error);
-    const detail = error.status ? `${error.message} (HTTP ${error.status})` : error.message;
-    toast(`Failed to save rate: ${detail}`);
-  }
+  if (isHidden && !excessPipeTiersLoaded) loadExcessPipeRate();
 }
 
 async function handleClick(event) {
@@ -341,6 +377,10 @@ async function handleClick(event) {
   if (button.dataset.open) { if (button.dataset.open === "productModal") prepareProductForm(); return openModal(button.dataset.open); }
   if (button.dataset.approve) return changeBooking(button.dataset.approve, "Approved");
   if (button.dataset.reject) return changeBooking(button.dataset.reject, "Rejected");
+  if (button.dataset.viewMap) return openBookingMap(button.dataset.viewMap);
+  if (button.dataset.reviewCharges) return openChargeModal(button.dataset.reviewCharges);
+  if (button.dataset.approveCharge) return reviewCharge(button.dataset.approveCharge, "approve");
+  if (button.dataset.rejectCharge) return reviewCharge(button.dataset.rejectCharge, "reject");
   if (button.dataset.deleteService) return deleteRecord("service", button.dataset.deleteService);
   if (button.dataset.deleteProduct) return deleteRecord("product", button.dataset.deleteProduct);
   if (button.dataset.deleteTechnician) return deleteRecord("technician", button.dataset.deleteTechnician);
@@ -353,17 +393,71 @@ async function handleClick(event) {
   if (button.dataset.editTechnician) return fillTechnician(button.dataset.editTechnician);
   if (button.dataset.editCustomer) return fillCustomer(button.dataset.editCustomer);
   if (button.dataset.historyCustomer) return showHistory(button.dataset.historyCustomer);
-  if (button.dataset.saveExcessPipeRate) return saveExcessPipeRateInline();
+  if (button.dataset.addExcessPipeTier) return addExcessPipeTier();
+  if (button.dataset.saveExcessPipeTier) return saveExcessPipeTier(button.dataset.saveExcessPipeTier);
+  if (button.dataset.deleteExcessPipeTier) return deleteExcessPipeTier(button.dataset.deleteExcessPipeTier);
+  if (button.dataset.reloadExcessPipeRate) { excessPipeTiersLoaded = false; return loadExcessPipeRate(); }
   if (button.dataset.togglePricingSettings) return togglePricingSettings();
-  if (button.dataset.reloadExcessPipeRate) { excessPipeRateLoaded = false; return loadExcessPipeRate(); }
 }
 
-function showHistory(id) { const customer = customers.find((item) => String(item.id) === String(id)); const items = bookings.filter((booking) => booking.status === "Completed" && String(booking.customer).trim().toLowerCase() === String(customer?.name || "").trim().toLowerCase()); $("historyTitle").textContent = `${customer?.name || "Customer"} — Service History`; $("historyBody").innerHTML = items.length ? items.map((booking) => `<article class="history-entry"><strong>${escapeHtml(booking.service)}</strong><span>${escapeHtml(booking.preferredDate || booking.scheduleDate || "Date not set")} · ${escapeHtml(booking.preferredTime || booking.scheduleTime || "Time not set")}</span><b>${peso(booking.totalAmount)}</b></article>`).join("") : `<p class="empty-note">No completed services found.</p>`; $("historyModal").classList.remove("hidden"); }
+function showHistory(id) { const customer = customers.find((item) => String(item.id) === String(id)); const items = bookings.filter((booking) => booking.status === "Completed" && String(booking.customer).trim().toLowerCase() === String(customer?.name || "").trim().toLowerCase()); $("historyTitle").textContent = `${customer?.name || "Customer"} — Service History`; $("historyBody").innerHTML = items.length ? items.map((booking) => { const total = booking.finalAmount ?? booking.totalAmount; const paymentRecord = payments.find((payment) => String(payment.requestId) === String(booking.id)); const paidNote = booking.paymentId ? `<span>Paid ${peso(booking.amountPaid)}${booking.referenceNo ? ` · Ref ${escapeHtml(booking.referenceNo)}` : ""}${paymentRecord?.receivedBy ? ` · by ${escapeHtml(paymentRecord.receivedBy)}` : ""}</span>` : ""; const pendingNote = booking.chargeStatus === "Pending" ? `<span>Charges under review</span>` : ""; return `<article class="history-entry"><strong>${escapeHtml(booking.service)}</strong><span>${escapeHtml(booking.preferredDate || booking.scheduleDate || "Date not set")} · ${escapeHtml(booking.preferredTime || booking.scheduleTime || "Time not set")}</span>${pendingNote}${paidNote}<b>${peso(total)}</b></article>`; }).join("") : `<p class="empty-note">No completed services found.</p>`; $("historyModal").classList.remove("hidden"); }
 
 async function changeBooking(id, status) {
   await updateBookingStatus(id, status);
   toast(`Booking ${id} marked ${status}.`);
   await loadAll();
+}
+
+let adminBookingMap = null;
+
+function openBookingMap(id) {
+  const booking = bookings.find((item) => String(item.id) === String(id));
+  if (!booking) return;
+  const container = $("adminBookingMap");
+  const addressText = $("mapModalAddress");
+  if (adminBookingMap) { adminBookingMap.remove(); adminBookingMap = null; }
+  if (booking.latitude == null || booking.longitude == null) {
+    container.classList.add("hidden");
+    addressText.textContent = "Location not available";
+    openModal("mapModal");
+    return;
+  }
+  addressText.textContent = booking.address || "No address text provided.";
+  openModal("mapModal");
+  requestAnimationFrame(() => {
+    adminBookingMap = L.map("adminBookingMap").setView([Number(booking.latitude), Number(booking.longitude)], 16);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "&copy; OpenStreetMap contributors" }).addTo(adminBookingMap);
+    L.marker([Number(booking.latitude), Number(booking.longitude)], { draggable: false }).addTo(adminBookingMap);
+    setTimeout(() => adminBookingMap?.invalidateSize(), 150);
+  });
+}
+
+function openChargeModal(chargeId) {
+  const booking = bookings.find((item) => String(item.chargeId) === String(chargeId));
+  if (!booking) return;
+  const items = [];
+  if (Number(booking.chargeExcessFeet) > 0) items.push(`<li>Excess pipe: ${booking.chargeExcessFeet} ft — <b>${peso(booking.chargeExcessCost)}</b></li>`);
+  if (booking.chargeAdditionalDescription || Number(booking.chargeAdditionalCost) > 0) items.push(`<li>Additional work: ${escapeHtml(booking.chargeAdditionalDescription || "—")}${Number(booking.chargeAdditionalCost) > 0 ? ` — <b>${peso(booking.chargeAdditionalCost)}</b>` : ""}</li>`);
+  $("chargeBookingLabel").textContent = `Booking #${booking.id} — ${booking.customer} — ${booking.service}`;
+  $("chargeDetails").innerHTML = `${items.length ? `<ul>${items.join("")}</ul>` : `<p class="empty-note">No itemized charges were submitted.</p>`}<p><strong>Booked estimate:</strong> ${peso(booking.totalAmount)}</p><p><strong>Proposed total:</strong> ${peso(booking.chargeProposedTotal)}</p>${booking.chargeProposedAmountPaid != null ? `<p><strong>Technician's proposed payment:</strong> ${peso(booking.chargeProposedAmountPaid)}${Number(booking.chargeProposedDiscount) > 0 ? ` · discount ${peso(booking.chargeProposedDiscount)}` : ""}</p><p class="form-note">Approving will also record this proposed payment.</p>` : `<p class="form-note">The technician did not propose a payment amount. After approving, record the payment via the Payments tab.</p>`}<p class="form-note">Approving sets this booking's final amount to the proposed total. Rejecting keeps the original booked estimate as the final amount.</p>`;
+  $("approveChargeButton").dataset.approveCharge = chargeId;
+  $("rejectChargeButton").dataset.rejectCharge = chargeId;
+  openModal("chargeModal");
+}
+
+async function reviewCharge(id, action) {
+  try {
+    const result = await (action === "approve" ? approveJobCharge : rejectJobCharge)(id);
+    closeModals();
+    if (action === "approve") {
+      toast(result?.paymentRecorded ? "Charges approved and payment recorded." : "Charges approved. Record the payment via the Payments tab.");
+    } else {
+      toast("Charges rejected.");
+    }
+    await loadAll();
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 async function deleteRecord(type, id) {

@@ -102,15 +102,31 @@ export function matchServicePrice(serviceId, hPower, unitType, airconType) {
   return requestJson(`/api/services/${serviceId}/price-match?${params.toString()}`);
 }
 
-export function getExcessPipeRate() {
-  return requestJson("/api/excess-pipe/rate");
+export function getExcessPipeRate(hPower) {
+  const params = new URLSearchParams({ hPower: String(hPower) });
+  return requestJson(`/api/excess-pipe/rate?${params.toString()}`);
 }
 
-export function updateExcessPipeRate(ratePerFoot) {
-  return requestJson("/api/excess-pipe/rate", {
-    method: "PUT",
-    body: JSON.stringify({ ratePerFoot })
+export function getExcessPipeRates() {
+  return requestJson("/api/excess-pipe/rates");
+}
+
+export function createExcessPipeRateTier(tier) {
+  return requestJson("/api/excess-pipe/rates", {
+    method: "POST",
+    body: JSON.stringify(tier)
   });
+}
+
+export function updateExcessPipeRateTier(id, tier) {
+  return requestJson(`/api/excess-pipe/rates/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(tier)
+  });
+}
+
+export async function removeExcessPipeRateTier(id) {
+  await requestJson(`/api/excess-pipe/rates/${id}`, { method: "DELETE" });
 }
 
 export function createService(service) {
@@ -222,12 +238,6 @@ export function createBooking(booking) {
         const base = { airconType: unit.airconType, brandId: Number(unit.brandId), technology: unit.technology, horsePower: Number(unit.horsePower), quantity: Number(unit.quantity) };
         if (unit.problem) base.problem = unit.problem;
         if (Array.isArray(unit.photos) && unit.photos.length) base.photos = unit.photos;
-        if (unit.needsExcessPipe) {
-          base.needsExcessPipe = true;
-          base.excessPipeFeet = Number(unit.excessPipeFeet) || 0;
-          base.excessPipeRate = Number(unit.excessPipeRate) || 0;
-          base.excessPipeCost = Number(unit.excessPipeCost) || 0;
-        }
         return base;
       })
     } : {})
@@ -256,11 +266,37 @@ export function rescheduleBooking(id, preferredDate, preferredTime) {
   });
 }
 
-export function updateTechnicianJobStatus(id, status, reason = "") {
+export function updateTechnicianJobStatus(id, status, reason = "", charges = {}) {
+  const body = { status, reason };
+  if (charges.excessPipeFeet !== undefined) body.excessPipeFeet = charges.excessPipeFeet;
+  if (charges.excessPipeHPower !== undefined) body.excessPipeHPower = charges.excessPipeHPower;
+  if (charges.additionalCost !== undefined) body.additionalCost = charges.additionalCost;
+  if (charges.additionalDescription !== undefined) body.additionalDescription = charges.additionalDescription;
+  if (charges.amountPaid !== undefined) body.amountPaid = charges.amountPaid;
+  if (charges.discount !== undefined) body.discount = charges.discount;
   return requestJson(`/api/bookings/${id}/technician-status`, {
     method: "PUT",
-    body: JSON.stringify({ status, reason })
+    body: JSON.stringify(body)
   });
+}
+
+export function approveJobCharge(id) {
+  return requestJson(`/api/job-charges/${id}/approve`, { method: "PUT" });
+}
+
+export function rejectJobCharge(id) {
+  return requestJson(`/api/job-charges/${id}/reject`, { method: "PUT" });
+}
+
+export function createServicePayment(payment) {
+  return requestJson("/api/payments/services", {
+    method: "POST",
+    body: JSON.stringify(payment)
+  });
+}
+
+export function getServicePayments() {
+  return requestJson("/api/payments/services");
 }
 
 export async function removeBooking(id) {

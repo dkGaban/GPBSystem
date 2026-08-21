@@ -81,6 +81,23 @@ export function renderUnitPhotosMarkup(units = []) {
   return `<div class="unit-photo-list">${entries.map((unit) => `<div class="unit-photo-list-item"><small>${escapeHtml(unit.description || "Unit")}</small><div class="unit-photo-thumbs">${unit.photos.map((photo) => `<a href="${escapeHtml(photo)}" target="_blank" rel="noopener" class="unit-photo-link" title="View photo"><img src="${escapeHtml(photo)}" alt="Unit photo" loading="lazy" /></a>`).join("")}</div></div>`).join("")}</div>`;
 }
 
+export function renderUnitDetailsMarkup(units = []) {
+  const list = (Array.isArray(units) ? units : []).map((unit) => {
+    const parts = [];
+    if (unit.brandName) parts.push(`Brand: ${escapeHtml(unit.brandName)}`);
+    if (unit.airconType) parts.push(`Type: ${escapeHtml(unit.airconType)}`);
+    if (unit.technology) parts.push(`Technology: ${escapeHtml(unit.technology)}`);
+    const horsePower = Number(unit.horsePower);
+    if (Number.isFinite(horsePower) && horsePower > 0) parts.push(`Horsepower: ${escapeHtml(horsePower)} HP`);
+    const description = String(unit.description || "").trim();
+    const problem = /^repair/i.test(description) ? escapeHtml(description) : "";
+    if (!parts.length && !problem) return "";
+    return `<div class="unit-details-item">${parts.length ? `<small>${parts.join(" · ")}</small>` : ""}${problem ? `<small>${problem}</small>` : ""}</div>`;
+  }).filter(Boolean);
+  if (!list.length) return "";
+  return `<div class="unit-details-list">${list.join("")}</div>`;
+}
+
 export function renderProducts(products, options = {}) {
   const grid = document.getElementById("productsGrid");
   if (!grid) return;

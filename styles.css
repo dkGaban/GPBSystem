@@ -236,6 +236,7 @@ html { scroll-behavior: smooth; }
 .form-message { min-height: 18px; color: #0a47a3; font-size: 12px; font-weight: 700; }
 .table-search { width: min(420px, 100%); margin-bottom: 16px; border: 1px solid #dbe3ef; border-radius: 8px; padding: 10px 12px; color: #0f172a; }
 .history-card { max-width: 680px; }
+.booking-map-view { height: 320px; border-radius: 10px; border: 1px solid #e5edf6; z-index: 0; }
 .history-entry { display: grid; grid-template-columns: 1fr auto; gap: 5px 16px; border-bottom: 1px solid #e5edf6; padding: 14px 0; }
 .history-entry strong { color: #0f172a; font-size: 14px; }
 .history-entry span { color: #64748b; font-size: 12px; }
@@ -1591,6 +1592,12 @@ html { scroll-behavior: smooth; }
 .unit-photo-link { display: grid; }
 .unit-photo-link img { width: 44px; height: 44px; object-fit: cover; border: 1px solid #dbe7f4; border-radius: 8px; background: #e2e8f0; }
 .unit-photo-link:hover img { border-color: #0a47a3; }
+
+/* Unit identification details in admin / technician views */
+.unit-details-list { display: grid; gap: 6px; margin-top: 8px; }
+.unit-details-item { display: grid; gap: 2px; }
+.unit-details-item small { color: #334155; font-size: 11px; line-height: 1.35; }
+.unit-details-item small + small { color: #64748b; }
 
 /* Technician card */
 .technician-card { margin-top: 20px; border: 1px solid #dbe7f4; border-radius: 14px; background: linear-gradient(180deg, #fff, #fbfdff); overflow: hidden; box-shadow: 0 4px 14px rgba(15, 45, 88, .06); }

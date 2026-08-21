@@ -439,7 +439,8 @@ function openChargeModal(chargeId) {
   if (Number(booking.chargeExcessFeet) > 0) items.push(`<li>Excess pipe: ${booking.chargeExcessFeet} ft — <b>${peso(booking.chargeExcessCost)}</b></li>`);
   if (booking.chargeAdditionalDescription || Number(booking.chargeAdditionalCost) > 0) items.push(`<li>Additional work: ${escapeHtml(booking.chargeAdditionalDescription || "—")}${Number(booking.chargeAdditionalCost) > 0 ? ` — <b>${peso(booking.chargeAdditionalCost)}</b>` : ""}</li>`);
   $("chargeBookingLabel").textContent = `Booking #${booking.id} — ${booking.customer} — ${booking.service}`;
-  $("chargeDetails").innerHTML = `${items.length ? `<ul>${items.join("")}</ul>` : `<p class="empty-note">No itemized charges were submitted.</p>`}<p><strong>Booked estimate:</strong> ${peso(booking.totalAmount)}</p><p><strong>Proposed total:</strong> ${peso(booking.chargeProposedTotal)}</p>${booking.chargeProposedAmountPaid != null ? `<p><strong>Technician's proposed payment:</strong> ${peso(booking.chargeProposedAmountPaid)}${Number(booking.chargeProposedDiscount) > 0 ? ` · discount ${peso(booking.chargeProposedDiscount)}` : ""}</p><p class="form-note">Approving will also record this proposed payment.</p>` : `<p class="form-note">The technician did not propose a payment amount. After approving, record the payment via the Payments tab.</p>`}<p class="form-note">Approving sets this booking's final amount to the proposed total. Rejecting keeps the original booked estimate as the final amount.</p>`;
+  $("chargeDetails").innerHTML = `${items.length ? `<ul>${items.join("")}</ul>` : `<p class="empty-note">No itemized charges were submitted.</p>`}<p><strong>Booked estimate:</strong> ${peso(booking.totalAmount)}</p><p><strong>Proposed total:</strong> ${peso(booking.chargeProposedTotal)}</p>${booking.chargeProposedAmountPaid != null ? `<p><strong>Technician's proposed payment:</strong> ${peso(booking.chargeProposedAmountPaid)}${Number(booking.chargeProposedDiscount) > 0 ? ` · discount ${peso(booking.chargeProposedDiscount)}` : ""}</p><p class="form-note">Approving will record the payment amount entered below.</p>` : `<p class="form-note">The technician did not propose a payment amount. Enter a payment amount below if the technician collected one.</p>`}<p class="form-note">Approving sets this booking's final amount to the proposed total. Rejecting keeps the original booked estimate as the final amount.</p>`;
+  $("chargeDetails").insertAdjacentHTML("beforeend", `<div class="form-grid"><label class="form-field"><span>Payment amount to record (optional)</span><input id="chargePaymentAmount" type="number" min="0.01" step="0.01" value="${booking.chargeProposedAmountPaid != null ? Number(booking.chargeProposedAmountPaid).toFixed(2) : ""}" placeholder="Leave blank if no payment was collected" /></label><label class="form-field"><span>Discount</span><input id="chargePaymentDiscount" type="number" min="0" step="0.01" value="${Number(booking.chargeProposedDiscount || 0).toFixed(2)}" /></label></div>`);
   $("approveChargeButton").dataset.approveCharge = chargeId;
   $("rejectChargeButton").dataset.rejectCharge = chargeId;
   openModal("chargeModal");
@@ -447,10 +448,11 @@ function openChargeModal(chargeId) {
 
 async function reviewCharge(id, action) {
   try {
-    const result = await (action === "approve" ? approveJobCharge : rejectJobCharge)(id);
+    const payment = action === "approve" ? { amountPaid: $("chargePaymentAmount").value.trim(), discount: $("chargePaymentDiscount").value.trim() } : {};
+    const result = await (action === "approve" ? approveJobCharge(id, payment) : rejectJobCharge(id));
     closeModals();
     if (action === "approve") {
-      toast(result?.paymentRecorded ? "Charges approved and payment recorded." : "Charges approved. Record the payment via the Payments tab.");
+      toast(result?.paymentRecorded ? "Charges approved and payment recorded." : "Submission approved.");
     } else {
       toast("Charges rejected.");
     }

@@ -12,10 +12,18 @@ module.exports = function registerJobChargeRoutes(app, { getPool, sql, requireUs
       if (!chargeResult.recordset.length) return res.status(404).json({ message: "Charge report not found." });
       const charge = chargeResult.recordset[0];
       if (charge.Status !== "Pending") return res.status(409).json({ message: "This charge report has already been reviewed." });
+      const hasAmountOverride = req.body.amountPaid !== undefined && req.body.amountPaid !== null && String(req.body.amountPaid).trim() !== "";
+      const approvedAmount = hasAmountOverride ? Number(req.body.amountPaid) : (charge.ProposedAmountPaid === null ? null : Number(charge.ProposedAmountPaid));
+      const hasDiscountOverride = req.body.discount !== undefined && req.body.discount !== null && String(req.body.discount).trim() !== "";
+      const approvedDiscount = hasDiscountOverride ? Number(req.body.discount) : Number(charge.ProposedDiscount || 0);
+      if (approvedAmount !== null && (!Number.isFinite(approvedAmount) || approvedAmount <= 0)) return res.status(400).json({ message: "Payment amount must be a positive number." });
+      if (!Number.isFinite(approvedDiscount) || approvedDiscount < 0) return res.status(400).json({ message: "Discount must be zero or a positive number." });
       await pool.request()
         .input("ChargeID", sql.Int, chargeId)
         .input("ReviewedBy", sql.NVarChar(100), actorName(req))
-        .query("UPDATE tblJobCharge SET Status = 'Approved', ReviewedBy = @ReviewedBy, ReviewedAt = GETDATE() WHERE ChargeID = @ChargeID");
+        .input("ProposedAmountPaid", sql.Decimal(10, 2), approvedAmount)
+        .input("ProposedDiscount", sql.Decimal(10, 2), approvedDiscount)
+        .query("UPDATE tblJobCharge SET Status = 'Approved', ProposedAmountPaid = @ProposedAmountPaid, ProposedDiscount = @ProposedDiscount, ReviewedBy = @ReviewedBy, ReviewedAt = GETDATE() WHERE ChargeID = @ChargeID");
       await pool.request()
         .input("RequestID", sql.Int, charge.RequestID)
         .input("FinalAmount", sql.Decimal(10, 2), Number(charge.ProposedTotal))
@@ -24,19 +32,19 @@ module.exports = function registerJobChargeRoutes(app, { getPool, sql, requireUs
         .input("ExcessPipeCost", sql.Decimal(10, 2), charge.ExcessPipeCost ?? null)
         .query("UPDATE tblServiceRequest SET FinalAmount = @FinalAmount, ExcessPipeFeet = @ExcessPipeFeet, ExcessPipeRate = @ExcessPipeRate, ExcessPipeCost = @ExcessPipeCost WHERE RequestID = @RequestID");
       let paymentRecorded = false;
-      if (charge.ProposedAmountPaid !== null && charge.ProposedAmountPaid !== undefined) {
+      if (approvedAmount !== null) {
         const existingPayment = await pool.request()
           .input("RequestID", sql.Int, charge.RequestID)
           .query("SELECT TOP 1 PaymentID FROM tblPayment WHERE RequestID = @RequestID");
         if (!existingPayment.recordset.length) {
           const { payment, referenceNo } = await insertServicePayment(pool, sql, {
             requestId: charge.RequestID,
-            amountPaid: Number(charge.ProposedAmountPaid),
-            discount: Number(charge.ProposedDiscount || 0),
+            amountPaid: approvedAmount,
+            discount: approvedDiscount,
             receivedBy: actorName(req)
           });
           paymentRecorded = true;
-          await logAction(`Recorded service payment ${referenceNo} (₱${Number(charge.ProposedAmountPaid).toFixed(2)}) for request #${charge.RequestID} via charge approval`, actorName(req), "tblPayment", payment.PaymentID);
+          await logAction(`Recorded service payment ${referenceNo} (₱${approvedAmount.toFixed(2)}) for request #${charge.RequestID} via charge approval`, actorName(req), "tblPayment", payment.PaymentID);
         }
       }
       await logAction(`Approved job charges #${chargeId} for request #${charge.RequestID} (final amount ₱${Number(charge.ProposedTotal).toFixed(2)})${paymentRecorded ? "; recorded the technician's proposed payment" : ""}`, actorName(req), "tblJobCharge", chargeId);
@@ -54,6 +62,12 @@ module.exports = function registerJobChargeRoutes(app, { getPool, sql, requireUs
       if (!chargeResult.recordset.length) return res.status(404).json({ message: "Charge report not found." });
       const charge = chargeResult.recordset[0];
       if (charge.Status !== "Pending") return res.status(409).json({ message: "This charge report has already been reviewed." });
+      const hasAmountOverride = req.body.amountPaid !== undefined && req.body.amountPaid !== null && String(req.body.amountPaid).trim() !== "";
+      const approvedAmount = hasAmountOverride ? Number(req.body.amountPaid) : (charge.ProposedAmountPaid === null ? null : Number(charge.ProposedAmountPaid));
+      const hasDiscountOverride = req.body.discount !== undefined && req.body.discount !== null && String(req.body.discount).trim() !== "";
+      const approvedDiscount = hasDiscountOverride ? Number(req.body.discount) : Number(charge.ProposedDiscount || 0);
+      if (approvedAmount !== null && (!Number.isFinite(approvedAmount) || approvedAmount <= 0)) return res.status(400).json({ message: "Payment amount must be a positive number." });
+      if (!Number.isFinite(approvedDiscount) || approvedDiscount < 0) return res.status(400).json({ message: "Discount must be zero or a positive number." });
       await pool.request()
         .input("ChargeID", sql.Int, chargeId)
         .input("ReviewedBy", sql.NVarChar(100), actorName(req))

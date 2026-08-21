@@ -280,8 +280,8 @@ export function updateTechnicianJobStatus(id, status, reason = "", charges = {})
   });
 }
 
-export function approveJobCharge(id) {
-  return requestJson(`/api/job-charges/${id}/approve`, { method: "PUT" });
+export function approveJobCharge(id, payment = {}) {
+  return requestJson(`/api/job-charges/${id}/approve`, { method: "PUT", body: JSON.stringify(payment) });
 }
 
 export function rejectJobCharge(id) {

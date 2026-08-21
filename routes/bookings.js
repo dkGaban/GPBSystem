@@ -282,9 +282,10 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
     try {
       const pool = await getPool();
       const bookingResult = await pool.request().input("Id", sql.Int, Number(req.params.id))
-        .query("SELECT TOP 1 RequestID, ServiceName, TotalAmount FROM tblServiceRequest WHERE RequestID = @Id");
+        .query("SELECT TOP 1 RequestID, ServiceName, TotalAmount, Status FROM tblServiceRequest WHERE RequestID = @Id");
       if (!bookingResult.recordset.length) return res.status(404).json({ message: "Booking not found." });
       const booking = bookingResult.recordset[0];
+      if (booking.Status === "Completed" && status !== "Completed") return res.status(400).json({ message: "A completed booking cannot be moved back to an earlier status." });
       const excessFields = {};
       let chargeReport = null;
       if (status === "Completed") {

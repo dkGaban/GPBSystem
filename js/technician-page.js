@@ -1,4 +1,4 @@
-import { changePassword, createServicePayment, getBookings, getCustomers, getExcessPipeRates, getMyTechnicianProfile, getSession, setSession, updateMyTechnicianProfile, updateTechnicianJobStatus } from "./api.js";
+import { changePassword, getBookings, getCustomers, getExcessPipeRates, getMyTechnicianProfile, getSession, setSession, updateMyTechnicianProfile, updateTechnicianJobStatus } from "./api.js";
 import { bindTabs, escapeHtml, fileToDataUrl, isValidPhilippineMobile, logout, peso, renderUnitDetailsMarkup, renderUnitPhotosMarkup, requireRole, showTab, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("technician");
@@ -19,7 +19,6 @@ async function init() {
   document.getElementById("profileCancel").addEventListener("click", () => renderProfile(profile));
   document.getElementById("profilePhoto").addEventListener("change", previewProfilePhoto);
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeModals));
-  document.getElementById("techPaymentForm").addEventListener("submit", saveTechPayment);
   document.getElementById("techCompleteForm").addEventListener("submit", submitTechCompletion);
   ensureProfileCityField();
   document.getElementById("profilePhone").addEventListener("input", () => validateProfilePhone());
@@ -36,8 +35,6 @@ async function init() {
     await saveJobStatus(event.target, event.target.value);
   });
   document.body.addEventListener("click", async (event) => {
-    const recordButton = event.target.closest("[data-record-payment]");
-    if (recordButton) return openTechPaymentModal(recordButton.dataset.recordPayment);
     const mapButton = event.target.closest("[data-view-map]");
     if (mapButton) return openTechBookingMap(mapButton.dataset.viewMap);
     const saveButton = event.target.closest("[data-save-unable]");
@@ -293,39 +290,7 @@ function ensureProfileCityField() { const field = document.createElement("label"
 function inferServiceAreaCity(address) { const value = String(address || "").toLowerCase(); return ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].find((city) => value.includes(city.toLowerCase())) || ""; }
 
 function jobRow(booking) {
-  const canRecordPayment = booking.status === "Completed" && !booking.paymentId && booking.chargeStatus !== "Pending";
-  return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}${renderUnitDetailsMarkup(booking.units)}${renderUnitPhotosMarkup(booking.units)}</td><td>${escapeHtml(booking.address || [booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" "))}<br /><button type="button" class="tiny-button secondary-button" data-view-map="${booking.id}">View on map</button></td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}${booking.chargeStatus === "Pending" ? `<small class="job-reason">Charges submitted — awaiting admin approval (${peso(booking.chargeProposedTotal)})</small><small class="job-reason">Payment can't be recorded until charges are approved.</small>` : ""}${booking.chargeStatus === "Approved" ? `<small class="job-reason">Charges approved</small>` : ""}${booking.chargeStatus === "Rejected" ? `<small class="job-reason">Extra charges rejected — final amount is the booked estimate</small>` : ""}${canRecordPayment ? `<button type="button" class="tiny-button secondary-button" data-record-payment="${booking.id}">Record Payment</button>` : ""}${booking.paymentId ? `<small class="job-reason">Payment recorded</small>` : ""}</td><td><select data-job-status="${booking.id}"><option ${booking.status === "Scheduled" ? "selected" : ""}>Scheduled</option><option ${booking.status === "In Progress" ? "selected" : ""}>In Progress</option><option ${booking.status === "Completed" ? "selected" : ""}>Completed</option><option ${booking.status === "Unable to Complete" ? "selected" : ""}>Unable to Complete</option></select></td></tr>`;
-}
-
-let techPaymentBookingId = null;
-let techBookingMap = null;
-
-function openTechPaymentModal(id) {
-  const booking = bookings.find((item) => String(item.id) === String(id));
-  if (!booking) return;
-  techPaymentBookingId = booking.id;
-  $("techPaymentBookingLabel").textContent = `Booking #${booking.id} — ${booking.customer} — ${booking.service}`;
-  const suggested = Number(booking.finalAmount ?? booking.totalAmount);
-  $("techPaymentAmount").value = Number.isFinite(suggested) && suggested > 0 ? suggested.toFixed(2) : "";
-  $("techPaymentDiscount").value = "0";
-  openModal("techPaymentModal");
-}
-
-async function saveTechPayment(event) {
-  event.preventDefault();
-  if (techPaymentBookingId == null) return;
-  const amountPaid = Number($("techPaymentAmount").value);
-  const discount = Number($("techPaymentDiscount").value || 0);
-  if (!Number.isFinite(amountPaid) || amountPaid <= 0) return toast("Amount paid must be a positive number.");
-  if (!Number.isFinite(discount) || discount < 0) return toast("Discount must be zero or a positive number.");
-  try {
-    await createServicePayment({ requestId: techPaymentBookingId, amountPaid, discount });
-    closeModals();
-    toast("Payment recorded.");
-    await loadAll();
-  } catch (error) {
-    toast(error.message);
-  }
+  return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}${renderUnitDetailsMarkup(booking.units)}${renderUnitPhotosMarkup(booking.units)}</td><td>${escapeHtml(booking.address || [booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" "))}<br /><button type="button" class="tiny-button secondary-button" data-view-map="${booking.id}">View on map</button></td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}${booking.chargeStatus === "Pending" ? `<small class="job-reason">Charges submitted — awaiting admin approval (${peso(booking.chargeProposedTotal)})</small><small class="job-reason">Payment can't be recorded until charges are approved.</small>` : ""}${booking.chargeStatus === "Approved" ? `<small class="job-reason">Charges approved</small>` : ""}${booking.chargeStatus === "Rejected" ? `<small class="job-reason">Extra charges rejected — final amount is the booked estimate</small>` : ""}${booking.paymentId ? `<small class="job-reason">Payment recorded</small>` : ""}</td><td><select data-job-status="${booking.id}"><option ${booking.status === "Scheduled" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>Scheduled</option><option ${booking.status === "In Progress" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>In Progress</option><option ${booking.status === "Completed" ? "selected" : ""}>Completed</option><option ${booking.status === "Unable to Complete" ? "selected" : ""}>Unable to Complete</option></select></td></tr>`;
 }
 
 function openTechBookingMap(id) {

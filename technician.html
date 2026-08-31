@@ -76,14 +76,17 @@
           <input id="techCompleteExcessFeet" type="number" min="1" step="1" placeholder="Leave blank if none" />
         </label>
       </div>
-      <label class="form-field">
-        <span>Extra work done (optional)</span>
-        <input id="techCompleteExtraDesc" type="text" maxlength="500" placeholder="Describe any additional work found on-site" />
-      </label>
-      <label class="form-field">
-        <span>Extra cost (₱, optional)</span>
-        <input id="techCompleteExtraCost" type="number" min="0" step="0.01" placeholder="0.00" />
-      </label>
+      <div id="techCompleteAdditionalField">
+        <p><strong>Additional charges (optional)</strong></p>
+        <label class="form-field">
+          <span>Description of additional work/parts</span>
+          <textarea id="techCompleteAdditionalDesc" rows="3" maxlength="500" placeholder="e.g. Found refrigerant leak, replaced compressor valve, added freon..."></textarea>
+        </label>
+        <label class="form-field">
+          <span>Additional cost</span>
+          <input id="techCompleteAdditionalCost" type="number" min="0" step="0.01" placeholder="0.00" />
+        </label>
+      </div>
       <p><strong>Payment collected (optional)</strong></p>
       <label class="form-field">
         <span>Amount paid</span>

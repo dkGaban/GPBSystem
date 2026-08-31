@@ -20,6 +20,8 @@ async function init() {
   document.getElementById("profilePhoto").addEventListener("change", previewProfilePhoto);
   document.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeModals));
   document.getElementById("techCompleteForm").addEventListener("submit", submitTechCompletion);
+  document.getElementById("techCompleteExcessHPower").addEventListener("change", updateSuggestedPayment);
+  document.getElementById("techCompleteExcessFeet").addEventListener("input", updateSuggestedPayment);
   ensureProfileCityField();
   document.getElementById("profilePhone").addEventListener("input", () => validateProfilePhone());
   document.body.addEventListener("change", async (event) => {
@@ -77,6 +79,8 @@ function jobNeedsExcessPipe(booking) {
 }
 
 let techCompleteBookingId = null;
+let techCompleteOriginalStatus = null;
+let techCompleteSelectElement = null;
 
 function bandContainsHorsePower(label, horsePower) {
   const values = String(label || "").match(/[0-9]+(?:\.[0-9]+)?/g)?.map(Number) || [];
@@ -98,6 +102,8 @@ function openTechCompleteModal(select) {
     return;
   }
   techCompleteBookingId = booking.id;
+  techCompleteOriginalStatus = booking.status;
+  techCompleteSelectElement = select;
   $("techCompleteSummary").textContent = `Booking #${booking.id} — ${booking.customer} — ${booking.service}`;
   const showExcessPipe = jobNeedsExcessPipe(booking);
   $("techCompleteExcessField").hidden = !showExcessPipe;
@@ -113,12 +119,23 @@ function openTechCompleteModal(select) {
   bandSelect.value = "";
   // Excess pipe is optional; leave the band unselected until the technician reports feet.
   $("techCompleteExcessFeet").value = "";
-  $("techCompleteExtraDesc").value = "";
-  $("techCompleteExtraCost").value = "";
+  $("techCompleteAdditionalDesc").value = "";
+  $("techCompleteAdditionalCost").value = "";
   const suggested = Number(booking.finalAmount ?? booking.totalAmount);
   $("techCompleteAmountPaid").value = Number.isFinite(suggested) && suggested > 0 ? suggested.toFixed(2) : "";
   $("techCompleteDiscount").value = "0";
   openModal("techCompleteModal");
+}
+
+function updateSuggestedPayment() {
+  const booking = bookings.find((item) => String(item.id) === String(techCompleteBookingId));
+  if (!booking) return;
+  const baseAmount = Number(booking.finalAmount ?? booking.totalAmount);
+  const feet = Number($("techCompleteExcessFeet").value || 0);
+  const band = excessPipeBands.find((item) => String(item.hPower) === String($("techCompleteExcessHPower").value));
+  const pipeCost = Number.isInteger(feet) && feet > 0 ? feet * Number(band?.ratePerFoot || 0) : 0;
+  const suggested = baseAmount + pipeCost;
+  $("techCompleteAmountPaid").value = Number.isFinite(suggested) && suggested > 0 ? suggested.toFixed(2) : "";
 }
 
 async function submitTechCompletion(event) {
@@ -146,24 +163,26 @@ async function submitTechCompletion(event) {
     charges.excessPipeFeet = feet;
     charges.excessPipeHPower = selectedBand;
   }
-  const description = $("techCompleteExtraDesc").value.trim();
-  const rawCost = $("techCompleteExtraCost").value.trim();
+  const additionalDesc = $("techCompleteAdditionalDesc").value.trim();
+  const rawAdditionalCost = $("techCompleteAdditionalCost").value.trim();
   let additionalCost = 0;
-  if (rawCost !== "") {
-    additionalCost = Number(rawCost);
+  if (rawAdditionalCost !== "") {
+    additionalCost = Number(rawAdditionalCost);
     if (!Number.isFinite(additionalCost) || additionalCost < 0) {
-      $("techCompleteExtraCost").focus();
+      $("techCompleteAdditionalCost").focus();
       toast("Additional cost must be zero or a positive number.");
       return;
     }
   }
-  if (description && additionalCost <= 0 && !charges.excessPipeFeet) {
-    $("techCompleteExtraDesc").focus();
-    toast("Enter the additional cost for the described work, or leave both blank.");
+  if (additionalCost > 0 && !additionalDesc) {
+    $("techCompleteAdditionalDesc").focus();
+    toast("Please describe the additional work or parts that justify the extra cost.");
     return;
   }
-  if (description) charges.additionalDescription = description;
-  if (additionalCost > 0) charges.additionalCost = additionalCost;
+  if (additionalCost > 0 || additionalDesc) {
+    charges.additionalDescription = additionalDesc;
+    charges.additionalCost = additionalCost;
+  }
   const rawAmount = $("techCompleteAmountPaid").value.trim();
   let amountPaid = 0;
   if (rawAmount !== "") {
@@ -190,14 +209,11 @@ async function submitTechCompletion(event) {
     toast(error.message);
     return;
   }
-  if (charges.excessPipeFeet > 0 || charges.additionalCost > 0 || amountPaid > 0) {
-    closeModals();
-    toast("Job completed. The technician payment or extra charges are pending admin approval.");
-    await loadAll();
-    return;
-  }
+  techCompleteBookingId = null;
+  techCompleteOriginalStatus = null;
+  techCompleteSelectElement = null;
   closeModals();
-  toast("Job completed.");
+  toast("Job completed. Pending admin approval.");
   await loadAll();
 }
 
@@ -290,7 +306,7 @@ function ensureProfileCityField() { const field = document.createElement("label"
 function inferServiceAreaCity(address) { const value = String(address || "").toLowerCase(); return ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].find((city) => value.includes(city.toLowerCase())) || ""; }
 
 function jobRow(booking) {
-  return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}${renderUnitDetailsMarkup(booking.units)}${renderUnitPhotosMarkup(booking.units)}</td><td>${escapeHtml(booking.address || [booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" "))}<br /><button type="button" class="tiny-button secondary-button" data-view-map="${booking.id}">View on map</button></td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}${booking.chargeStatus === "Pending" ? `<small class="job-reason">Charges submitted — awaiting admin approval (${peso(booking.chargeProposedTotal)})</small><small class="job-reason">Payment can't be recorded until charges are approved.</small>` : ""}${booking.chargeStatus === "Approved" ? `<small class="job-reason">Charges approved</small>` : ""}${booking.chargeStatus === "Rejected" ? `<small class="job-reason">Extra charges rejected — final amount is the booked estimate</small>` : ""}${booking.paymentId ? `<small class="job-reason">Payment recorded</small>` : ""}</td><td><select data-job-status="${booking.id}"><option ${booking.status === "Scheduled" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>Scheduled</option><option ${booking.status === "In Progress" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>In Progress</option><option ${booking.status === "Completed" ? "selected" : ""}>Completed</option><option ${booking.status === "Unable to Complete" ? "selected" : ""}>Unable to Complete</option></select></td></tr>`;
+  return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}${renderUnitDetailsMarkup(booking.units)}${renderUnitPhotosMarkup(booking.units)}</td><td>${escapeHtml(booking.address || [booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" "))}<br /><button type="button" class="tiny-button secondary-button" data-view-map="${booking.id}">View on map</button></td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}${booking.chargeStatus === "Pending" ? `<small class="job-reason">Charges submitted — awaiting admin approval (${peso(booking.chargeProposedTotal)})</small><small class="job-reason">Payment can't be recorded until charges are approved.</small>` : ""}${booking.chargeStatus === "Approved" ? `<small class="job-reason">Charges approved</small>` : ""}${booking.chargeStatus === "Rejected" ? `<small class="job-reason">Extra charges rejected — final amount is the booked estimate</small>` : ""}${booking.paymentId ? `<small class="job-reason">Payment recorded</small>` : ""}</td><td><select data-job-status="${booking.id}"><option ${booking.status === "Scheduled" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>Scheduled</option><option ${booking.status === "In Progress" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>In Progress</option><option ${booking.status === "Completed" ? "selected" : ""}>Completed</option><option ${booking.status === "Unable to Complete" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>Unable to Complete</option></select></td></tr>`;
 }
 
 function openTechBookingMap(id) {
@@ -320,6 +336,12 @@ function openModal(id) {
 }
 
 function closeModals() {
+  if (techCompleteSelectElement && techCompleteOriginalStatus && !document.getElementById("techCompleteModal").classList.contains("hidden")) {
+    techCompleteSelectElement.value = techCompleteOriginalStatus;
+  }
+  techCompleteBookingId = null;
+  techCompleteOriginalStatus = null;
+  techCompleteSelectElement = null;
   document.querySelectorAll(".modal").forEach((modal) => modal.classList.add("hidden"));
   document.querySelectorAll(".modal form").forEach((form) => form.reset());
 }

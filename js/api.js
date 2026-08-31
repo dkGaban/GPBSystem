@@ -270,10 +270,10 @@ export function updateTechnicianJobStatus(id, status, reason = "", charges = {})
   const body = { status, reason };
   if (charges.excessPipeFeet !== undefined) body.excessPipeFeet = charges.excessPipeFeet;
   if (charges.excessPipeHPower !== undefined) body.excessPipeHPower = charges.excessPipeHPower;
-  if (charges.additionalCost !== undefined) body.additionalCost = charges.additionalCost;
-  if (charges.additionalDescription !== undefined) body.additionalDescription = charges.additionalDescription;
   if (charges.amountPaid !== undefined) body.amountPaid = charges.amountPaid;
   if (charges.discount !== undefined) body.discount = charges.discount;
+  if (charges.additionalDescription !== undefined) body.additionalDescription = charges.additionalDescription;
+  if (charges.additionalCost !== undefined) body.additionalCost = charges.additionalCost;
   return requestJson(`/api/bookings/${id}/technician-status`, {
     method: "PUT",
     body: JSON.stringify(body)

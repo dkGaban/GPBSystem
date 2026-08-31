@@ -62,12 +62,6 @@ module.exports = function registerJobChargeRoutes(app, { getPool, sql, requireUs
       if (!chargeResult.recordset.length) return res.status(404).json({ message: "Charge report not found." });
       const charge = chargeResult.recordset[0];
       if (charge.Status !== "Pending") return res.status(409).json({ message: "This charge report has already been reviewed." });
-      const hasAmountOverride = req.body.amountPaid !== undefined && req.body.amountPaid !== null && String(req.body.amountPaid).trim() !== "";
-      const approvedAmount = hasAmountOverride ? Number(req.body.amountPaid) : (charge.ProposedAmountPaid === null ? null : Number(charge.ProposedAmountPaid));
-      const hasDiscountOverride = req.body.discount !== undefined && req.body.discount !== null && String(req.body.discount).trim() !== "";
-      const approvedDiscount = hasDiscountOverride ? Number(req.body.discount) : Number(charge.ProposedDiscount || 0);
-      if (approvedAmount !== null && (!Number.isFinite(approvedAmount) || approvedAmount <= 0)) return res.status(400).json({ message: "Payment amount must be a positive number." });
-      if (!Number.isFinite(approvedDiscount) || approvedDiscount < 0) return res.status(400).json({ message: "Discount must be zero or a positive number." });
       await pool.request()
         .input("ChargeID", sql.Int, chargeId)
         .input("ReviewedBy", sql.NVarChar(100), actorName(req))

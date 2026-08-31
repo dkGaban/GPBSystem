@@ -5,15 +5,24 @@ module.exports = function registerCustomerRoutes(app, { getPool, sql, requireUse
   app.get("/api/customers", requireUser, async (req, res) => {
     try {
       const pool = await getPool();
-      const result = await pool.request().query(`
-        SELECT CustomerID AS id, Name AS name, CNumber AS phone, Email AS email,
-          COALESCE(NULLIF(CONCAT(NULLIF(HouseNumber, ''), CASE WHEN NULLIF(HouseNumber, '') IS NOT NULL THEN ', ' ELSE '' END,
-          NULLIF(Street, ''), CASE WHEN NULLIF(Street, '') IS NOT NULL THEN ', ' ELSE '' END,
-          CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN CONCAT('Barangay ', REPLACE(Barangay, 'Barangay ', '')) ELSE NULL END,
-          CASE WHEN NULLIF(Barangay, '') IS NOT NULL THEN ', ' ELSE '' END, NULLIF(City, ''), CASE WHEN NULLIF(City, '') IS NOT NULL THEN ', ' ELSE '' END,
-          NULLIF(Province, ''), CASE WHEN NULLIF(Province, '') IS NOT NULL THEN ', ' ELSE '' END, NULLIF(ZipCode, '')), ''), Address) AS address,
-          HouseNumber AS houseNumber, Street AS street, Barangay AS barangay, City AS city, Province AS province, ZipCode AS zipCode
-        FROM tblCustomer ORDER BY CustomerID DESC
+      const request = pool.request();
+      let technicianFilter = "";
+      if (req.user.role === "technician") {
+        const technicianResult = await pool.request().input("UserId", sql.Int, req.user.id).query("SELECT TOP 1 t.Id FROM Technicians t INNER JOIN Users u ON u.Email = t.Email WHERE u.Id = @UserId AND u.Role = 'technician'");
+        if (!technicianResult.recordset.length) return res.json([]);
+        request.input("TechnicianId", sql.Int, technicianResult.recordset[0].Id);
+        technicianFilter = `
+          INNER JOIN (SELECT DISTINCT b.CustomerID FROM tblServiceRequest b INNER JOIN Schedules s ON s.BookingId = b.RequestID WHERE s.TechnicianId = @TechnicianId AND b.CustomerID IS NOT NULL) assigned ON assigned.CustomerID = c.CustomerID`;
+      }
+      const result = await request.query(`
+        SELECT c.CustomerID AS id, c.Name AS name, c.CNumber AS phone, c.Email AS email,
+          COALESCE(NULLIF(CONCAT(NULLIF(c.HouseNumber, ''), CASE WHEN NULLIF(c.HouseNumber, '') IS NOT NULL THEN ', ' ELSE '' END,
+          NULLIF(c.Street, ''), CASE WHEN NULLIF(c.Street, '') IS NOT NULL THEN ', ' ELSE '' END,
+          CASE WHEN NULLIF(c.Barangay, '') IS NOT NULL THEN CONCAT('Barangay ', REPLACE(c.Barangay, 'Barangay ', '')) ELSE NULL END,
+          CASE WHEN NULLIF(c.Barangay, '') IS NOT NULL THEN ', ' ELSE '' END, NULLIF(c.City, ''), CASE WHEN NULLIF(c.City, '') IS NOT NULL THEN ', ' ELSE '' END,
+          NULLIF(c.Province, ''), CASE WHEN NULLIF(c.Province, '') IS NOT NULL THEN ', ' ELSE '' END, NULLIF(c.ZipCode, '')), ''), c.Address) AS address,
+          c.HouseNumber AS houseNumber, c.Street AS street, c.Barangay AS barangay, c.City AS city, c.Province AS province, c.ZipCode AS zipCode
+        FROM tblCustomer c${technicianFilter} ORDER BY c.CustomerID DESC
       `);
       res.json(result.recordset);
     } catch (error) { sendInternalError(res, error, "Request failed"); }

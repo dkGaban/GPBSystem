@@ -17,8 +17,15 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
     try {
       const pool = await getPool();
       const request = pool.request();
-      const customerFilter = req.user.role === "customer" ? "WHERE LOWER(b.Email) = LOWER(@Email)" : "";
-      if (req.user.role === "customer") request.input("Email", sql.NVarChar(150), req.user.email);
+      let customerFilter = req.user.role === "customer" ? "WHERE LOWER(b.Email) = LOWER(@Email)" : "";
+      if (req.user.role === "customer") {
+        request.input("Email", sql.NVarChar(150), req.user.email);
+      } else if (req.user.role === "technician") {
+        const technicianResult = await pool.request().input("UserId", sql.Int, req.user.id).query("SELECT TOP 1 t.Id FROM Technicians t INNER JOIN Users u ON u.Email = t.Email WHERE u.Id = @UserId AND u.Role = 'technician'");
+        if (!technicianResult.recordset.length) return res.json([]);
+        request.input("TechnicianId", sql.Int, technicianResult.recordset[0].Id);
+        customerFilter = "WHERE t.Id = @TechnicianId";
+      }
       const result = await request.query(`SELECT b.RequestID AS id, b.CustomerName AS customer, b.Phone AS phone, b.Email AS email, b.ServiceName AS service, b.Address AS address, b.UnableToCompleteReason AS unableToCompleteReason, CONVERT(varchar(10), b.RequestDate, 23) AS preferredDate, b.RequestTime AS preferredTime, b.TotalAmount AS totalAmount, b.Status AS status, b.Latitude AS latitude, b.Longitude AS longitude, t.Name AS technician, CONVERT(varchar(10), s.ScheduleDate, 23) AS scheduleDate, s.ScheduleTime AS scheduleTime, b.FinalAmount AS finalAmount, b.ExcessPipeFeet AS excessPipeFeet, b.ExcessPipeCost AS excessPipeCost, p.PaymentID AS paymentId, p.AmountPaid AS amountPaid, p.Discount AS discount, p.ReferenceNo AS referenceNo, cc.ChargeID AS chargeId, cc.Status AS chargeStatus, cc.ExcessPipeFeet AS chargeExcessFeet, cc.ExcessPipeCost AS chargeExcessCost, cc.AdditionalDescription AS chargeAdditionalDescription, cc.AdditionalCost AS chargeAdditionalCost, cc.ProposedTotal AS chargeProposedTotal, cc.ProposedAmountPaid AS chargeProposedAmountPaid, cc.ProposedDiscount AS chargeProposedDiscount FROM tblServiceRequest b LEFT JOIN Schedules s ON s.BookingId = b.RequestID LEFT JOIN Technicians t ON t.Id = s.TechnicianId LEFT JOIN tblPayment p ON p.RequestID = b.RequestID OUTER APPLY (SELECT TOP 1 c.ChargeID, c.Status, c.ExcessPipeFeet, c.ExcessPipeCost, c.AdditionalDescription, c.AdditionalCost, c.ProposedTotal, c.ProposedAmountPaid, c.ProposedDiscount FROM tblJobCharge c WHERE c.RequestID = b.RequestID ORDER BY c.ChargeID DESC) cc ${customerFilter} ORDER BY b.RequestID DESC`);
       const bookings = result.recordset;
       if (req.user.role === "customer") {
@@ -255,16 +262,6 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
     }
     const excessPipeHPower = String(req.body.excessPipeHPower ?? "").trim();
     if (excessPipeFeet > 0 && !excessPipeHPower) return res.status(400).json({ message: "Select the horsepower band for the excess pipe." });
-    const rawAdditionalCost = req.body.additionalCost;
-    const hasAdditionalCost = rawAdditionalCost !== undefined && rawAdditionalCost !== null && String(rawAdditionalCost).trim() !== "";
-    let additionalCost = 0;
-    if (hasAdditionalCost) {
-      additionalCost = Number(rawAdditionalCost);
-      if (!Number.isFinite(additionalCost) || additionalCost < 0) return res.status(400).json({ message: "Additional cost must be zero or a positive number." });
-    }
-    const additionalDescription = String(req.body.additionalDescription || "").trim();
-    if (additionalDescription.length > 500) return res.status(400).json({ message: "The additional work description must be 500 characters or fewer." });
-    if (additionalCost > 0 && !additionalDescription) return res.status(400).json({ message: "Please describe the additional work before adding its cost." });
     const rawProposedAmount = req.body.amountPaid;
     const hasProposedAmount = rawProposedAmount !== undefined && rawProposedAmount !== null && String(rawProposedAmount).trim() !== "";
     let proposedAmountPaid = null;
@@ -279,12 +276,24 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
       proposedDiscount = Number(rawProposedDiscount);
       if (!Number.isFinite(proposedDiscount) || proposedDiscount < 0) return res.status(400).json({ message: "Discount must be zero or a positive number." });
     }
+    const additionalDescription = String(req.body.additionalDescription ?? "").trim() || null;
+    const rawAdditionalCost = req.body.additionalCost;
+    let additionalCost = 0;
+    if (rawAdditionalCost !== undefined && rawAdditionalCost !== null && String(rawAdditionalCost).trim() !== "") {
+      additionalCost = Number(rawAdditionalCost);
+      if (!Number.isFinite(additionalCost) || additionalCost < 0) return res.status(400).json({ message: "Additional cost must be zero or a positive number." });
+    }
     try {
       const pool = await getPool();
       const bookingResult = await pool.request().input("Id", sql.Int, Number(req.params.id))
         .query("SELECT TOP 1 RequestID, ServiceName, TotalAmount, Status FROM tblServiceRequest WHERE RequestID = @Id");
       if (!bookingResult.recordset.length) return res.status(404).json({ message: "Booking not found." });
       const booking = bookingResult.recordset[0];
+      if (req.user.role === "technician") {
+        const assigned = await pool.request().input("UserId", sql.Int, req.user.id).input("RequestId", sql.Int, Number(req.params.id))
+          .query("SELECT TOP 1 1 AS ok FROM tblServiceRequest b INNER JOIN Schedules s ON s.BookingId = b.RequestID INNER JOIN Technicians t ON t.Id = s.TechnicianId INNER JOIN Users u ON u.Email = t.Email WHERE b.RequestID = @RequestId AND u.Id = @UserId AND u.Role = 'technician'");
+        if (!assigned.recordset.length) return res.status(403).json({ message: "This job is not assigned to you." });
+      }
       if (booking.Status === "Completed" && status !== "Completed") return res.status(400).json({ message: "A completed booking cannot be moved back to an earlier status." });
       const excessFields = {};
       let chargeReport = null;
@@ -299,24 +308,20 @@ module.exports = function registerBookingRoutes(app, { getPool, sql, requireUser
           excessFields.ExcessPipeRate = rate;
           excessFields.ExcessPipeCost = Number((excessPipeFeet * rate).toFixed(2));
         }
-        if (excessFields.ExcessPipeCost > 0 || additionalCost > 0 || proposedAmountPaid !== null) {
-          const proposedTotal = Number((Number(booking.TotalAmount) + Number(excessFields.ExcessPipeCost || 0) + additionalCost).toFixed(2));
-          const chargeResult = await pool.request()
-            .input("RequestID", sql.Int, Number(req.params.id))
-            .input("ExcessPipeFeet", sql.Int, excessFields.ExcessPipeFeet ?? null)
-            .input("ExcessPipeRate", sql.Decimal(10, 2), excessFields.ExcessPipeRate ?? null)
-            .input("ExcessPipeCost", sql.Decimal(10, 2), excessFields.ExcessPipeCost ?? null)
-            .input("AdditionalDescription", sql.NVarChar(500), additionalDescription || null)
-            .input("AdditionalCost", sql.Decimal(10, 2), additionalCost)
-            .input("ProposedTotal", sql.Decimal(10, 2), proposedTotal)
-            .input("ProposedAmountPaid", sql.Decimal(10, 2), proposedAmountPaid)
-            .input("ProposedDiscount", sql.Decimal(10, 2), proposedDiscount)
-            .input("SubmittedBy", sql.NVarChar(100), actorName(req))
-            .query("INSERT INTO tblJobCharge (RequestID, ExcessPipeFeet, ExcessPipeRate, ExcessPipeCost, AdditionalDescription, AdditionalCost, ProposedTotal, ProposedAmountPaid, ProposedDiscount, Status, SubmittedBy) OUTPUT INSERTED.ChargeID AS chargeId, INSERTED.ProposedTotal AS proposedTotal VALUES (@RequestID, @ExcessPipeFeet, @ExcessPipeRate, @ExcessPipeCost, @AdditionalDescription, @AdditionalCost, @ProposedTotal, @ProposedAmountPaid, @ProposedDiscount, 'Pending', @SubmittedBy)");
-          chargeReport = chargeResult.recordset[0];
-        } else {
-          excessFields.FinalAmount = Number((Number(booking.TotalAmount) + Number(excessFields.ExcessPipeCost || 0)).toFixed(2));
-        }
+        const proposedTotal = Number((Number(booking.TotalAmount) + Number(excessFields.ExcessPipeCost || 0) + Number(additionalCost || 0)).toFixed(2));
+        const chargeResult = await pool.request()
+          .input("RequestID", sql.Int, Number(req.params.id))
+          .input("ExcessPipeFeet", sql.Int, excessFields.ExcessPipeFeet ?? null)
+          .input("ExcessPipeRate", sql.Decimal(10, 2), excessFields.ExcessPipeRate ?? null)
+          .input("ExcessPipeCost", sql.Decimal(10, 2), excessFields.ExcessPipeCost ?? null)
+          .input("AdditionalDescription", sql.NVarChar(500), additionalDescription)
+          .input("AdditionalCost", sql.Decimal(10, 2), additionalCost)
+          .input("ProposedTotal", sql.Decimal(10, 2), proposedTotal)
+          .input("ProposedAmountPaid", sql.Decimal(10, 2), excessFields.ExcessPipeCost > 0 || additionalCost > 0 ? proposedTotal : proposedAmountPaid)
+          .input("ProposedDiscount", sql.Decimal(10, 2), proposedDiscount)
+          .input("SubmittedBy", sql.NVarChar(100), actorName(req))
+          .query("INSERT INTO tblJobCharge (RequestID, ExcessPipeFeet, ExcessPipeRate, ExcessPipeCost, AdditionalDescription, AdditionalCost, ProposedTotal, ProposedAmountPaid, ProposedDiscount, Status, SubmittedBy) OUTPUT INSERTED.ChargeID AS chargeId, INSERTED.ProposedTotal AS proposedTotal VALUES (@RequestID, @ExcessPipeFeet, @ExcessPipeRate, @ExcessPipeCost, @AdditionalDescription, @AdditionalCost, @ProposedTotal, @ProposedAmountPaid, @ProposedDiscount, 'Pending', @SubmittedBy)");
+        chargeReport = chargeResult.recordset[0];
       }
       const updateRequest = pool.request()
         .input("Id", sql.Int, Number(req.params.id))

@@ -1,0 +1,148 @@
+/* ============================================
+   Forms — fields, grids, validation, calendar
+   ============================================ */
+
+.form-field {
+  display: block;
+}
+
+.form-field span {
+  display: block;
+  margin-bottom: 8px;
+  color: #1e3a5f;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 5px;
+  background: #ffffff;
+  padding: 10px 12px;
+  color: #1e293b;
+  font-size: 13px;
+  outline: none;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
+.form-section-label {
+  margin-top: 0.5rem;
+  color: #1e3a5f;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.form-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-field-row .form-field {
+  margin: 0;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.form-grid .full {
+  grid-column: 1 / -1;
+}
+
+.form-grid button {
+  justify-self: start;
+}
+
+.form-note {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.form-message {
+  min-height: 18px;
+  color: #0a47a3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.field-error {
+  display: block;
+  margin-top: 5px;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.table-search {
+  width: min(420px, 100%);
+  margin-bottom: 16px;
+  border: 1px solid #dbe3ef;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #0f172a;
+}
+
+.password-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+  border-top: 1px solid #dfe7f1;
+  padding-top: 22px;
+}
+
+.password-panel h3 {
+  color: #0f172a;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+/* Calendar strip */
+.calendar-strip {
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.week-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+}
+
+.week-grid div {
+  border-radius: 6px;
+  padding: 8px 4px;
+  text-align: center;
+  color: #334155;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.week-grid .active {
+  background: #174c9d;
+  color: #ffffff;
+}
+
+@media (max-width: 640px) {
+  .form-field-row {
+    grid-template-columns: 1fr;
+  }
+}

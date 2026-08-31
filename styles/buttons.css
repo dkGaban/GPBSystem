@@ -1,0 +1,89 @@
+/* ============================================
+   Buttons — primary, secondary, tiny, icon, etc.
+   ============================================ */
+
+.primary-button,
+.secondary-button,
+.danger-button,
+.success-button,
+.warning-button {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 4px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.primary-button {
+  background: #0047ad;
+  color: #ffffff;
+}
+
+.secondary-button {
+  border: 1px solid #94a3b8;
+  background: #ffffff;
+  color: #334155;
+}
+
+.success-button {
+  border: 1px solid #0f9f6e;
+  background: #f0fdf4;
+  color: #047857;
+}
+
+.warning-button {
+  border: 1px solid #f59e0b;
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.danger-button {
+  border: 1px solid #ef4444;
+  background: #fff1f2;
+  color: #b91c1c;
+}
+
+.tiny-button {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: 4px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.pager,
+.icon-button {
+  display: inline-grid;
+  height: 34px;
+  min-width: 34px;
+  place-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #475569;
+  font-weight: 700;
+}
+
+.pager.active {
+  background: #174c9d;
+  color: #ffffff;
+}
+
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: #1e3a5f;
+  font-size: 10px;
+  font-weight: 800;
+}

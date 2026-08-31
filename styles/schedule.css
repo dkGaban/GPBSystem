@@ -1,0 +1,45 @@
+/* ============================================
+   Schedule — rows, grid header, calendar
+   ============================================ */
+
+.schedule-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(145px, 1.2fr) minmax(220px, 2.2fr) minmax(130px, auto);
+  align-items: start;
+  gap: 12px;
+  padding: 13px 0;
+  font-size: 13px;
+}
+
+.schedule-row strong {
+  color: #0f172a;
+}
+
+.schedule-grid-header {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.2fr) minmax(120px, 1fr) minmax(145px, 1.2fr) minmax(220px, 2.2fr) minmax(130px, auto);
+  gap: 12px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.schedule-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.schedule-grid-header > * {
+  min-width: 0;
+}
+
+.schedule-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}

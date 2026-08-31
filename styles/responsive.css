@@ -1,0 +1,158 @@
+/* ============================================
+   Responsive — media queries (loaded last)
+   ============================================ */
+
+@media (max-width: 900px) {
+  body {
+    min-width: 0;
+  }
+
+  aside {
+    display: none;
+  }
+
+  header {
+    left: 0 !important;
+  }
+
+  main {
+    margin-left: 0 !important;
+  }
+
+  #statsGrid,
+  #activityLog,
+  #reportsGrid,
+  .products-grid,
+  .services-grid,
+  .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .website-nav {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+
+  .website-brand,
+  .website-actions {
+    min-width: 0;
+  }
+
+  .website-links {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .marketing-services {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-redesign-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-summary {
+    position: static;
+    order: -1;
+  }
+
+  .booking-summary-services {
+    max-height: 160px;
+    overflow: auto;
+  }
+}
+
+@media (min-width: 701px) {
+  .booking-step-indicator .booking-step strong {
+    display: block;
+  }
+}
+
+@media (max-width: 720px) {
+  .booking-unit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  #bookingServices {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-variant .booking-service-details {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-step-indicator {
+    gap: 5px;
+  }
+
+  .booking-step strong {
+    display: none !important;
+  }
+
+  .booking-date-time-grid {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+
+  .booking-service-card .booking-service-details {
+    grid-template-columns: 1fr;
+  }
+
+  .booking-map-frame .service-area-map {
+    min-height: 300px;
+  }
+}
+
+@media (max-width: 540px) {
+  .booking-address-control {
+    display: grid;
+  }
+}
+
+@media (max-width: 480px) {
+  .booking-submit-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .booking-submit-row .primary-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .booking-flow-form {
+    padding: 16px;
+  }
+
+  .booking-step-heading h3 {
+    font-size: 20px;
+  }
+
+  .booking-flow-navigation {
+    position: sticky;
+    bottom: 0;
+    z-index: 4;
+    margin: 0 -16px -16px;
+    background: rgba(255, 255, 255, 0.96);
+    padding: 14px 16px;
+  }
+
+  .booking-flow-navigation .primary-button,
+  .booking-flow-navigation .secondary-button {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .booking-summary {
+    padding: 16px;
+  }
+}

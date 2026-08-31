@@ -1,5 +1,9 @@
 import { clearSession, getSession } from "./api.js";
 
+const PRODUCTS_PER_PAGE = 6;
+let productsPage = 1;
+let _lastProductsArgs = null;
+
 export function requireRole(role) {
   const session = getSession();
   if (!session?.token || session.user?.role !== role) {
@@ -99,30 +103,82 @@ export function renderUnitDetailsMarkup(units = []) {
 }
 
 export function renderProducts(products, options = {}) {
+  _lastProductsArgs = { products, options };
   const grid = document.getElementById("productsGrid");
   if (!grid) return;
-  if (!products.length) {
-    grid.innerHTML = `<p class="text-sm text-slate-500">No products yet.</p>`;
+  const visible = options.includeOutOfStock
+    ? products
+    : products.filter((p) => Number(p.stocks) > 0);
+  if (!visible.length) {
+    grid.innerHTML = `<p class="text-sm text-slate-500">${products.length ? "No in-stock products available." : "No products yet."}</p>`;
+    grid.parentElement?.querySelector(".products-pager")?.remove();
     return;
   }
-  grid.innerHTML = products
-    .map(
-      (product) => `
-        <article class="product-card">
-          <div class="product-image">${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}">` : `<span class="product-image-placeholder">Image coming soon</span>`}</div>
-          <div class="product-card-body">
-          <span>${escapeHtml(product.productLine || product.type)}</span>
-            <h3>${escapeHtml(product.name)}</h3>
-            <p class="product-price">${peso(product.price)}</p>
-            <dl class="product-specs"><div><dt>Stocks</dt><dd>${escapeHtml(product.stocks)}</dd></div><div><dt>Horsepower</dt><dd>${escapeHtml(product.horsepower)}</dd></div></dl>
-          </div>
-          <div class="card-actions">
-            ${productActions(product, options)}
-          </div>
-        </article>
-      `
-    )
-    .join("");
+  const totalPages = Math.ceil(visible.length / PRODUCTS_PER_PAGE);
+  if (options.admin || visible.length <= PRODUCTS_PER_PAGE) {
+    grid.innerHTML = visible.map((product) => productCard(product, options)).join("");
+    grid.parentElement?.querySelector(".products-pager")?.remove();
+    return;
+  }
+  if (productsPage > totalPages) productsPage = totalPages;
+  const start = (productsPage - 1) * PRODUCTS_PER_PAGE;
+  const pageProducts = visible.slice(start, start + PRODUCTS_PER_PAGE);
+  grid.innerHTML = pageProducts.map((product) => productCard(product, options)).join("");
+  renderProductsPagination(totalPages, grid);
+}
+
+function renderProductsPagination(totalPages, grid) {
+  const parent = grid?.parentElement;
+  if (!parent) return;
+  let container = parent.querySelector(".products-pager");
+  if (!container) {
+    container = document.createElement("div");
+    container.className = "products-pager";
+    parent.appendChild(container);
+  }
+  let buttons = "";
+  if (productsPage > 1) buttons += `<button class="pager" data-page-product="${productsPage - 1}">Prev</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    buttons += `<button class="pager${i === productsPage ? " active" : ""}" data-page-product="${i}">${i}</button>`;
+  }
+  if (productsPage < totalPages) buttons += `<button class="pager" data-page-product="${productsPage + 1}">Next</button>`;
+  container.innerHTML = `<span>Page ${productsPage} of ${totalPages}</span><div class="bookings-pager">${buttons}</div>`;
+}
+
+function changeProductsPage(page) {
+  productsPage = page;
+  if (_lastProductsArgs) {
+    renderProducts(_lastProductsArgs.products, _lastProductsArgs.options);
+  }
+}
+
+document.body.addEventListener("click", (event) => {
+  const pageButton = event.target.closest("[data-page-product]");
+  if (pageButton) {
+    event.stopPropagation();
+    changeProductsPage(Number(pageButton.dataset.pageProduct));
+  }
+});
+
+function productCard(product, options) {
+  const specs = [];
+  if (product.horsepower) specs.push(`${escapeHtml(product.horsepower)}HP`);
+  if (product.stocks !== undefined && product.stocks !== null && product.stocks !== "") specs.push(`${escapeHtml(product.stocks)} in stock`);
+  const specLine = specs.length ? `<p class="product-spec-line">${specs.join(" &middot; ")}</p>` : "";
+  return `
+    <article class="product-card">
+      <div class="product-image">${product.image ? `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}">` : `<span class="product-image-placeholder">Image coming soon</span>`}</div>
+      <div class="product-card-body">
+        <span>${escapeHtml(product.productLine || product.type)}</span>
+        <h3>${escapeHtml(product.name)}</h3>
+        <p class="product-price">${peso(product.price)}</p>
+        ${specLine}
+      </div>
+      <div class="card-actions">
+        ${productActions(product, options)}
+      </div>
+    </article>
+  `;
 }
 
 export function renderServiceCards(services, options = {}) {

@@ -98,7 +98,7 @@ function render() {
   renderStats();
   renderBookings();
   renderServices();
-  renderProducts(products, { admin: true });
+  renderProducts(products, { admin: true, includeOutOfStock: true });
   renderTechnicians();
   renderCustomers();
   renderSchedules();

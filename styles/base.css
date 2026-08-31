@@ -1,0 +1,60 @@
+/* ============================================
+   Base — resets, body, utilities, shared rules
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+}
+
+body {
+  min-width: 1180px;
+  font-family: "DM Sans", ui-sans-serif, system-ui, sans-serif;
+  margin: 0;
+  background: #111827;
+  color: #172033;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.text-slate-500 {
+  color: #64748b;
+}
+
+.pre-line {
+  white-space: pre-line;
+}
+
+a.primary-button,
+a.secondary-button {
+  text-decoration: none;
+}
+
+.error-message {
+  color: #b42323;
+}

@@ -1,5 +1,5 @@
 import { cancelBooking, changePassword, createBooking, getBookings, getBookingTechnician, getBrands, getCustomers, getProducts, getServices, matchServicePrice, rescheduleBooking, updateCustomer } from "./api.js";
-import { bindTabs, escapeHtml, isValidPhilippineMobile, logout, peso, renderProducts, renderServiceCards, requireRole, showTab, statusBadge, toast } from "./portal-utils.js";
+import { bindTabs, escapeHtml, isValidPhilippineMobile, logout, peso, renderProducts, renderServiceCards, requireRole, showConfirmModal, showTab, statusBadge, toast } from "./portal-utils.js";
 
 const session = requireRole("customer");
 let services = [];
@@ -349,7 +349,7 @@ async function cancelCustomerBooking(id) {
   const message = booking?.status === "In Progress"
     ? "Your technician is already on site. Cancelling now will incur a 450 peso fee for their time and travel, payable on-site." + sameDayWarning + " Do you want to continue?"
     : "Cancel this booking request?" + sameDayWarning + " Do you want to continue?";
-  if (!confirm(message)) return;
+  if (!(await showConfirmModal({ message }))) return;
   try {
     await cancelBooking(id);
     toast("Booking cancelled.");

@@ -1,4 +1,4 @@
-import { escapeHtml } from "./portal-utils.js";
+import { escapeHtml, showConfirmModal } from "./portal-utils.js";
 
 const token = new URLSearchParams(window.location.search).get("token");
 const $ = (id) => document.getElementById(id);
@@ -22,7 +22,7 @@ async function loadBooking() {
 }
 
 $("cancelBookingButton").addEventListener("click", async () => {
-  if (!confirm("Cancel this booking? Cancelling now is free, but the time slot will be released for other customers.")) return;
+  if (!(await showConfirmModal({ message: "Cancel this booking? Cancelling now is free, but the time slot will be released for other customers." }))) return;
   await submitAction("cancel", {});
 });
 

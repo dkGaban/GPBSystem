@@ -218,3 +218,35 @@ function productActions(product, options) {
 
   return `<a class="tiny-button secondary-button" href="index.html">Login to Book</a>`;
 }
+
+export function showConfirmModal({ message, confirmLabel = "Yes, continue", cancelLabel = "Cancel", danger = true, onConfirm }) {
+  const modal = document.getElementById("genericConfirmModal");
+  if (!modal) return Promise.resolve(false);
+  const msgEl = modal.querySelector(".confirm-modal-message");
+  const confirmBtn = modal.querySelector(".confirm-modal-confirm");
+  const cancelBtn = modal.querySelector(".confirm-modal-cancel");
+  if (msgEl) msgEl.textContent = message;
+  if (confirmBtn) {
+    confirmBtn.textContent = confirmLabel;
+    confirmBtn.className = danger ? "danger-button" : "primary-button";
+  }
+  if (cancelBtn) cancelBtn.textContent = cancelLabel;
+  modal.classList.remove("hidden");
+  return new Promise((resolve) => {
+    function cleanup() {
+      confirmBtn?.removeEventListener("click", handleConfirm);
+      cancelBtn?.removeEventListener("click", handleCancel);
+      modal.removeEventListener("click", handleBackdrop);
+    }
+    function handleConfirm() { cleanup(); modal.classList.add("hidden"); if (onConfirm) onConfirm(); resolve(true); }
+    function handleCancel() { cleanup(); modal.classList.add("hidden"); resolve(false); }
+    function handleBackdrop(e) { if (e.target === modal) handleCancel(); }
+    confirmBtn?.addEventListener("click", handleConfirm);
+    cancelBtn?.addEventListener("click", handleCancel);
+    modal.addEventListener("click", handleBackdrop);
+  });
+}
+
+export function genericConfirmModalHtml() {
+  return `<div id="genericConfirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="genericConfirmTitle"><section class="confirmation-card"><div class="confirmation-icon" aria-hidden="true">!</div><h2 id="genericConfirmTitle">Are you sure?</h2><p class="confirm-modal-message"></p><div class="modal-actions"><button type="button" class="confirm-modal-cancel secondary-button">Cancel</button><button type="button" class="confirm-modal-confirm danger-button">Yes, continue</button></div></section></div>`;
+}

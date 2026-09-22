@@ -197,7 +197,7 @@ export function renderServiceCards(services, options = {}) {
   });
   target.innerHTML = [...categories.entries()].map(([category, variants]) => `
     <article class="service-category-card">
-      <div class="service-category-heading"><span class="nav-icon icon-service"></span><div><p>Service category</p><h3>${escapeHtml(category)}</h3></div><span>${variants.length} ${variants.length === 1 ? "variant" : "variants"}</span></div>
+      <div class="service-category-heading"><i class="fa-solid fa-screwdriver-wrench"></i><div><p>Service category</p><h3>${escapeHtml(category)}</h3></div><span>${variants.length} ${variants.length === 1 ? "variant" : "variants"}</span></div>
       <div class="service-variant-list">
         ${variants.map((service) => `<article class="service-variant-row">
           <div class="service-variant-copy">${service.image ? `<img src="${escapeHtml(service.image)}" alt="${escapeHtml(service.name)}">` : ""}<div><h4>${escapeHtml(service.name)}</h4><p>${escapeHtml(service.inclusion || "Professional service tailored to your requirements.")}</p></div></div>

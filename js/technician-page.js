@@ -240,11 +240,11 @@ async function loadAll() {
 
 function render() {
   document.getElementById("statsGrid").innerHTML = [
-    ["Assigned Jobs", bookings.length, "stat-blue", "icon-bookings"],
-    ["Pending", bookings.filter((item) => item.status === "Pending").length, "stat-orange", "icon-schedule"],
-    ["In Progress", bookings.filter((item) => item.status === "In Progress").length, "stat-purple", "icon-service"],
-    ["Completed", bookings.filter((item) => item.status === "Completed").length, "stat-green", "icon-dashboard"]
-  ].map(([label, value, color, icon]) => `<article class="stat-card"><span class="stat-icon ${color}"><span class="nav-icon ${icon}"></span></span><div><p>${label}</p><p>${value}</p></div></article>`).join("");
+    ["Assigned Jobs", bookings.length, "stat-blue", "fa-solid fa-calendar-check"],
+    ["Pending", bookings.filter((item) => item.status === "Pending").length, "stat-orange", "fa-solid fa-clock"],
+    ["In Progress", bookings.filter((item) => item.status === "In Progress").length, "stat-purple", "fa-solid fa-screwdriver-wrench"],
+    ["Completed", bookings.filter((item) => item.status === "Completed").length, "stat-green", "fa-solid fa-table-columns"]
+  ].map(([label, value, color, icon]) => `<article class="stat-card"><span class="stat-icon ${color}"><i class="${icon}"></i></span><div><p>${label}</p><p>${value}</p></div></article>`).join("");
   const rows = bookings.length ? bookings.map(jobRow).join("") : `<tr><td colspan="6" class="text-center text-slate-500">No assigned jobs yet.</td></tr>`;
   document.getElementById("jobsBody").innerHTML = rows;
   document.getElementById("jobsPageBody").innerHTML = rows;

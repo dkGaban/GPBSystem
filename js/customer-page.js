@@ -49,7 +49,7 @@ function technicianStepTracker(status) {
     { label: "On the Job", active: ["In Progress", "Completed"].includes(status) },
     { label: "Completed", active: status === "Completed" }
   ];
-  return `<div class="technician-tracker"><div class="technician-tracker-steps">${steps.map((step, i) => `<div class="technician-tracker-step ${step.active ? "is-active" : ""}"><span class="technician-tracker-dot">${step.active ? "✓" : ""}</span><span class="technician-tracker-label">${step.label}</span></div>`).join('<div class="technician-tracker-line"></div>')}</div></div>`;
+  return `<div class="technician-tracker"><div class="technician-tracker-steps">${steps.map((step, i) => `<div class="technician-tracker-step ${step.active ? "is-active" : ""}"><span class="technician-tracker-dot">${step.active ? "<i class=\"fa-solid fa-check\"></i>" : ""}</span><span class="technician-tracker-label">${step.label}</span></div>`).join('<div class="technician-tracker-line"></div>')}</div></div>`;
 }
 
 function renderTechnicianCard(bookingId) {
@@ -706,7 +706,7 @@ function renderPhotoStep() {
   container.innerHTML = bookingPhotoCards.map((card, index) => {
     const photos = parseStoredPhotos(card.block);
     const thumbs = photos.length
-      ? `<div class="booking-photo-previews">${photos.map((photo, photoIndex) => `<figure class="booking-photo-thumb"><img src="${escapeHtml(photo)}" alt="Photo ${photoIndex + 1} for ${escapeHtml(card.label)}" /><button type="button" class="booking-photo-remove" data-photo-card="${index}" data-photo-index="${photoIndex}" aria-label="Remove photo ${photoIndex + 1}">×</button></figure>`).join("")}</div>`
+      ? `<div class="booking-photo-previews">${photos.map((photo, photoIndex) => `<figure class="booking-photo-thumb"><img src="${escapeHtml(photo)}" alt="Photo ${photoIndex + 1} for ${escapeHtml(card.label)}" /><button type="button" class="booking-photo-remove" data-photo-card="${index}" data-photo-index="${photoIndex}" aria-label="Remove photo ${photoIndex + 1}"><i class="fa-solid fa-xmark"></i></button></figure>`).join("")}</div>`
       : "";
     return `<article class="booking-photo-card"><div class="booking-photo-card-header"><div><strong>${escapeHtml(card.label)}</strong><span>Would you like to include photos?</span></div>${photos.length ? `<b>${photos.length}/${BOOKING_PHOTO_MAX_COUNT}</b>` : ""}</div>${thumbs}<label class="booking-photo-dropzone" data-photo-dropzone="${index}"><span>Drag files or click here to upload photos (optional)</span><small>Up to ${BOOKING_PHOTO_MAX_COUNT} photos in JPG or PNG (max of ${BOOKING_PHOTO_MAX_SIZE_MB} MB/photo)</small><input type="file" accept="image/jpeg,image/png" multiple hidden /></label></article>`;
   }).join("");

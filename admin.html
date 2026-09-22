@@ -13,6 +13,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 <body>
   <div class="portal-shell">
@@ -26,15 +27,15 @@
     </div>
     <aside class="portal-sidebar">
       <nav class="portal-nav">
-        <button class="nav-link active" data-tab="dashboard"><span class="nav-icon icon-dashboard"></span>Dashboard</button>
-        <button class="nav-link" data-tab="bookings"><span class="nav-icon icon-bookings"></span>Bookings</button>
-        <button class="nav-link" data-tab="payments"><span class="nav-icon icon-product"></span>Payments</button>
-        <button class="nav-link" data-tab="schedules"><span class="nav-icon icon-schedule"></span>Schedules</button>
-        <button class="nav-link" data-tab="services"><span class="nav-icon icon-service"></span>Services</button>
-        <button class="nav-link" data-tab="products"><span class="nav-icon icon-product"></span>Products</button>
-        <button class="nav-link" data-tab="technicians"><span class="nav-icon icon-tech"></span>Technicians</button>
-        <button class="nav-link" data-tab="customers"><span class="nav-icon icon-customer"></span>Customers</button>
-        <button class="nav-link" data-tab="logs"><span class="nav-icon icon-logs"></span>Logs</button>
+        <button class="nav-link active" data-tab="dashboard"><i class="fa-solid fa-table-columns"></i>Dashboard</button>
+        <button class="nav-link" data-tab="bookings"><i class="fa-solid fa-calendar-check"></i>Bookings</button>
+        <button class="nav-link" data-tab="schedules"><i class="fa-solid fa-clock"></i>Schedules</button>
+        <button class="nav-link" data-tab="services"><i class="fa-solid fa-screwdriver-wrench"></i>Services</button>
+        <button class="nav-link" data-tab="products"><i class="fa-solid fa-box"></i>Products</button>
+        <button class="nav-link" data-tab="payments"><i class="fa-solid fa-money-bill-wave"></i>Payments</button>
+        <button class="nav-link" data-tab="technicians"><i class="fa-solid fa-user-gear"></i>Technicians</button>
+        <button class="nav-link" data-tab="customers"><i class="fa-solid fa-users"></i>Customers</button>
+        <button class="nav-link" data-tab="logs"><i class="fa-solid fa-list"></i>Logs</button>
       </nav>
     </aside>
 
@@ -168,7 +169,7 @@
           <div class="collapsible-card" id="pricingSettingsCard">
             <button type="button" class="collapsible-toggle" data-toggle-pricing-settings="true">
               <span class="collapsible-title">Pricing Settings</span>
-              <span class="collapsible-arrow">&#9660;</span>
+              <span class="collapsible-arrow"><i class="fa-solid fa-chevron-down"></i></span>
             </button>
             <div class="collapsible-body hidden" id="pricingSettingsBody">
               <div id="pricingSettingsContent">
@@ -266,7 +267,7 @@
     <form class="modal-card" id="serviceForm">
       <div class="modal-header">
         <h3>Service Variant</h3>
-        <button type="button" class="icon-button" data-close>x</button>
+        <button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button>
       </div>
       <input type="hidden" id="serviceId" />
       <input type="hidden" id="serviceExistingImage" />
@@ -297,7 +298,7 @@
     <form class="modal-card" id="productForm">
       <div class="modal-header">
         <h3>Product</h3>
-        <button type="button" class="icon-button" data-close>x</button>
+        <button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button>
       </div>
       <input type="hidden" id="productId" />
       <input type="hidden" id="productExistingImage" />
@@ -319,7 +320,7 @@
     <form class="modal-card" id="technicianForm">
       <div class="modal-header">
         <h3>Technician</h3>
-        <button type="button" class="icon-button" data-close>x</button>
+        <button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button>
       </div>
       <input type="hidden" id="technicianId" />
       <label class="form-field"><span>Name</span><input id="technicianName" required /></label>
@@ -340,7 +341,7 @@
     <form class="modal-card" id="customerForm">
       <div class="modal-header">
         <h3>Customer</h3>
-        <button type="button" class="icon-button" data-close>x</button>
+        <button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button>
       </div>
       <input type="hidden" id="customerId" />
       <label class="form-field"><span>Name</span><input id="customerName" required /></label>
@@ -354,11 +355,11 @@
     </form>
   </div>
 
-  <div id="historyModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3 id="historyTitle">Service History</h3><button type="button" class="icon-button" data-close>x</button></div><div id="historyBody"></div></section></div>
+  <div id="historyModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3 id="historyTitle">Service History</h3><button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button></div><div id="historyBody"></div></section></div>
 
-  <div id="mapModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3>Booking Location</h3><button type="button" class="icon-button" data-close>x</button></div><div id="adminBookingMap" class="booking-map-view"></div><p id="mapModalAddress" class="form-note"></p></section></div>
+  <div id="mapModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3>Booking Location</h3><button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button></div><div id="adminBookingMap" class="booking-map-view"></div><p id="mapModalAddress" class="form-note"></p></section></div>
 
-  <div id="chargeModal" class="modal hidden"><section class="modal-card"><div class="modal-header"><h3>Review Technician Submission</h3><button type="button" class="icon-button" data-close>x</button></div><p id="chargeBookingLabel" class="form-note"></p><div id="chargeDetails"></div><div class="modal-actions"><button type="button" class="danger-button" id="rejectChargeButton">Reject Submission</button><button type="button" class="success-button" id="approveChargeButton">Approve &amp; Save</button></div></section></div>
+  <div id="chargeModal" class="modal hidden"><section class="modal-card"><div class="modal-header"><h3>Review Technician Submission</h3><button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button></div><p id="chargeBookingLabel" class="form-note"></p><div id="chargeDetails"></div><div class="modal-actions"><button type="button" class="danger-button" id="rejectChargeButton">Reject Submission</button><button type="button" class="success-button" id="approveChargeButton">Approve &amp; Save</button></div></section></div>
 
   <div id="toast" class="toast hidden"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

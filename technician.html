@@ -12,6 +12,7 @@
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -19,11 +20,11 @@
     <div class="portal-brand"><div class="brand-logo-frame"><img class="brand-logo-img" src="resources/logo.png" alt="GBP logo" /></div><strong>GBP Electro -Mechanical Services</strong><button id="logoutButton" class="secondary-button">Logout</button></div>
     <aside class="portal-sidebar">
       <nav class="portal-nav">
-        <button class="nav-link active" data-tab="dashboard"><span class="nav-icon icon-dashboard"></span>Dashboard</button>
-        <button class="nav-link" data-tab="jobs"><span class="nav-icon icon-bookings"></span>Assigned Jobs</button>
-        <button class="nav-link" data-tab="schedule"><span class="nav-icon icon-schedule"></span>Schedule</button>
-        <button class="nav-link" data-tab="customers"><span class="nav-icon icon-customer"></span>Customers</button>
-        <button class="nav-link" data-tab="profile"><span class="nav-icon icon-customer"></span>My Profile</button>
+        <button class="nav-link active" data-tab="dashboard"><i class="fa-solid fa-table-columns"></i>Dashboard</button>
+        <button class="nav-link" data-tab="jobs"><i class="fa-solid fa-calendar-check"></i>Assigned Jobs</button>
+        <button class="nav-link" data-tab="schedule"><i class="fa-solid fa-clock"></i>Schedule</button>
+        <button class="nav-link" data-tab="customers"><i class="fa-solid fa-users"></i>Customers</button>
+        <button class="nav-link" data-tab="profile"><i class="fa-solid fa-user"></i>My Profile</button>
       </nav>
     </aside>
     <main class="portal-main">
@@ -61,7 +62,7 @@
     <form class="modal-card" id="techCompleteForm">
       <div class="modal-header">
         <h3>Mark Job Completed</h3>
-        <button type="button" class="icon-button" data-close>x</button>
+        <button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button>
       </div>
       <p id="techCompleteSummary" class="form-note"></p>
       <div id="techCompleteExcessField">
@@ -104,7 +105,7 @@
     </form>
   </div>
 
-  <div id="techMapModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3>Job Location</h3><button type="button" class="icon-button" data-close>x</button></div><div id="techBookingMap" class="booking-map-view"></div><p id="techMapModalAddress" class="form-note"></p></section></div>
+  <div id="techMapModal" class="modal hidden"><section class="modal-card history-card"><div class="modal-header"><h3>Job Location</h3><button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button></div><div id="techBookingMap" class="booking-map-view"></div><p id="techMapModalAddress" class="form-note"></p></section></div>
 
   <div id="toast" class="toast hidden"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

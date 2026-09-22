@@ -110,14 +110,14 @@ function render() {
 
 function renderStats() {
   const stats = [
-    ["Total Bookings", bookings.length, "stat-blue", "icon-bookings", "View all bookings"],
-    ["Pending Requests", bookings.filter((item) => item.status === "Pending").length, "stat-orange", "icon-schedule", "Review requests"],
-    ["Technicians", technicians.length, "stat-green", "icon-tech", "Manage technicians"],
-    ["Services", services.length, "stat-blue", "icon-service", "Manage services"]
+    ["Total Bookings", bookings.length, "stat-blue", "fa-solid fa-calendar-check", "View all bookings"],
+    ["Pending Requests", bookings.filter((item) => item.status === "Pending").length, "stat-orange", "fa-solid fa-clock", "Review requests"],
+    ["Technicians", technicians.length, "stat-green", "fa-solid fa-user-gear", "Manage technicians"],
+    ["Services", services.length, "stat-blue", "fa-solid fa-screwdriver-wrench", "Manage services"]
   ];
   document.getElementById("statsGrid").innerHTML = stats.map(([label, value, color, icon, link]) => `
     <article class="stat-card">
-      <span class="stat-icon ${color}"><span class="nav-icon ${icon}"></span></span>
+      <span class="stat-icon ${color}"><i class="${icon}"></i></span>
       <div>
         <p>${label}</p>
         <p>${value}</p>

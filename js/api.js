@@ -284,10 +284,6 @@ export function approveJobCharge(id, payment = {}) {
   return requestJson(`/api/job-charges/${id}/approve`, { method: "PUT", body: JSON.stringify(payment) });
 }
 
-export function rejectJobCharge(id) {
-  return requestJson(`/api/job-charges/${id}/reject`, { method: "PUT" });
-}
-
 export function createServicePayment(payment) {
   return requestJson("/api/payments/services", {
     method: "POST",

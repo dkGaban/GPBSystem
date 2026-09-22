@@ -17,7 +17,6 @@ import {
   getServicePayments,
   getServices,
   getTechnicians,
-  rejectJobCharge,
   removeBooking,
   removeCustomer,
   removeProduct,
@@ -379,8 +378,7 @@ async function handleClick(event) {
   if (button.dataset.reject) return changeBooking(button.dataset.reject, "Rejected");
   if (button.dataset.viewMap) return openBookingMap(button.dataset.viewMap);
   if (button.dataset.reviewCharges) return openChargeModal(button.dataset.reviewCharges);
-  if (button.dataset.approveCharge) return reviewCharge(button.dataset.approveCharge, "approve");
-  if (button.dataset.rejectCharge) return reviewCharge(button.dataset.rejectCharge, "reject");
+  if (button.dataset.approveCharge) return reviewCharge(button.dataset.approveCharge);
   if (button.dataset.deleteService) return deleteRecord("service", button.dataset.deleteService);
   if (button.dataset.deleteProduct) return deleteRecord("product", button.dataset.deleteProduct);
   if (button.dataset.deleteTechnician) return deleteRecord("technician", button.dataset.deleteTechnician);
@@ -440,23 +438,18 @@ function openChargeModal(chargeId) {
   if (Number(booking.chargeExcessFeet) > 0) items.push(`<li>Excess pipe: ${booking.chargeExcessFeet} ft — <b>${peso(booking.chargeExcessCost)}</b></li>`);
   if (Number(booking.chargeAdditionalCost) > 0) items.push(`<li>Additional charges: ${escapeHtml(booking.chargeAdditionalDescription || "No description")} — <b>${peso(booking.chargeAdditionalCost)}</b></li>`);
   $("chargeBookingLabel").textContent = `Booking #${booking.id} — ${booking.customer} — ${booking.service}`;
-  $("chargeDetails").innerHTML = `${items.length ? `<ul>${items.join("")}</ul>` : `<p class="empty-note">No itemized charges were submitted.</p>`}<p><strong>Booked estimate:</strong> ${peso(booking.totalAmount)}</p><p><strong>Proposed total:</strong> ${peso(booking.chargeProposedTotal)}</p>${booking.chargeProposedAmountPaid != null ? `<p><strong>Technician's proposed payment:</strong> ${peso(booking.chargeProposedAmountPaid)}${Number(booking.chargeProposedDiscount) > 0 ? ` · discount ${peso(booking.chargeProposedDiscount)}` : ""}</p><p class="form-note">Approving will record the payment amount entered below.</p>` : `<p class="form-note">The technician did not propose a payment amount. Enter a payment amount below if the technician collected one.</p>`}<p class="form-note">Approving sets this booking's final amount to the proposed total. Rejecting keeps the original booked estimate as the final amount.</p>`;
+  $("chargeDetails").innerHTML = `${items.length ? `<ul>${items.join("")}</ul>` : `<p class="empty-note">No itemized charges were submitted.</p>`}<p><strong>Booked estimate:</strong> ${peso(booking.totalAmount)}</p><p><strong>Proposed total:</strong> ${peso(booking.chargeProposedTotal)}</p>${booking.chargeProposedAmountPaid != null ? `<p><strong>Technician's proposed payment:</strong> ${peso(booking.chargeProposedAmountPaid)}${Number(booking.chargeProposedDiscount) > 0 ? ` · discount ${peso(booking.chargeProposedDiscount)}` : ""}</p><p class="form-note">Approving will record the payment amount entered below.</p>` : `<p class="form-note">The technician did not propose a payment amount. Enter a payment amount below if the technician collected one.</p>`}<p class="form-note">Approving sets this booking's final amount to the proposed total.</p>`;
   $("chargeDetails").insertAdjacentHTML("beforeend", `<div class="form-grid"><label class="form-field"><span>Payment amount to record (optional)</span><input id="chargePaymentAmount" type="number" min="0.01" step="0.01" value="${booking.chargeProposedAmountPaid != null ? Number(booking.chargeProposedAmountPaid).toFixed(2) : ""}" placeholder="Leave blank if no payment was collected" /></label><label class="form-field"><span>Discount</span><input id="chargePaymentDiscount" type="number" min="0" step="0.01" value="${Number(booking.chargeProposedDiscount || 0).toFixed(2)}" /></label></div>`);
   $("approveChargeButton").dataset.approveCharge = chargeId;
-  $("rejectChargeButton").dataset.rejectCharge = chargeId;
   openModal("chargeModal");
 }
 
-async function reviewCharge(id, action) {
+async function reviewCharge(id) {
   try {
-    const payment = action === "approve" ? { amountPaid: $("chargePaymentAmount").value.trim(), discount: $("chargePaymentDiscount").value.trim() } : {};
-    const result = await (action === "approve" ? approveJobCharge(id, payment) : rejectJobCharge(id));
+    const payment = { amountPaid: $("chargePaymentAmount").value.trim(), discount: $("chargePaymentDiscount").value.trim() };
+    const result = await approveJobCharge(id, payment);
     closeModals();
-    if (action === "approve") {
-      toast(result?.paymentRecorded ? "Charges approved and payment recorded." : "Submission approved.");
-    } else {
-      toast("Charges rejected.");
-    }
+    toast(result?.paymentRecorded ? "Charges approved and payment recorded." : "Submission approved.");
     await loadAll();
   } catch (error) {
     toast(error.message);

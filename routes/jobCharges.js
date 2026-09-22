@@ -51,27 +51,4 @@ module.exports = function registerJobChargeRoutes(app, { getPool, sql, requireUs
       res.json({ id: chargeId, requestId: charge.RequestID, status: "Approved", finalAmount: Number(charge.ProposedTotal), paymentRecorded });
     } catch (error) { sendInternalError(res, error, "Charge approval failed"); }
   });
-
-  app.put("/api/job-charges/:id/reject", requireUser, requireAdmin, async (req, res) => {
-    const chargeId = Number(req.params.id);
-    if (!Number.isInteger(chargeId) || chargeId <= 0) return res.status(400).json({ message: "Invalid charge report ID." });
-    try {
-      const pool = await getPool();
-      const chargeResult = await pool.request().input("ChargeID", sql.Int, chargeId)
-        .query("SELECT TOP 1 c.ChargeID, c.RequestID, c.Status, b.TotalAmount FROM tblJobCharge c INNER JOIN tblServiceRequest b ON b.RequestID = c.RequestID WHERE c.ChargeID = @ChargeID");
-      if (!chargeResult.recordset.length) return res.status(404).json({ message: "Charge report not found." });
-      const charge = chargeResult.recordset[0];
-      if (charge.Status !== "Pending") return res.status(409).json({ message: "This charge report has already been reviewed." });
-      await pool.request()
-        .input("ChargeID", sql.Int, chargeId)
-        .input("ReviewedBy", sql.NVarChar(100), actorName(req))
-        .query("UPDATE tblJobCharge SET Status = 'Rejected', ReviewedBy = @ReviewedBy, ReviewedAt = GETDATE() WHERE ChargeID = @ChargeID");
-      await pool.request()
-        .input("RequestID", sql.Int, charge.RequestID)
-        .input("FinalAmount", sql.Decimal(10, 2), Number(charge.TotalAmount))
-        .query("UPDATE tblServiceRequest SET FinalAmount = @FinalAmount WHERE RequestID = @RequestID");
-      await logAction(`Rejected job charges #${chargeId} for request #${charge.RequestID} (final amount falls back to the booked estimate ₱${Number(charge.TotalAmount).toFixed(2)})`, actorName(req), "tblJobCharge", chargeId);
-      res.json({ id: chargeId, requestId: charge.RequestID, status: "Rejected", finalAmount: Number(charge.TotalAmount) });
-    } catch (error) { sendInternalError(res, error, "Charge rejection failed"); }
-  });
 };

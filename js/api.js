@@ -60,6 +60,18 @@ export function changePassword(payload) {
   return requestJson("/api/auth/change-password", { method: "PUT", body: JSON.stringify(payload) });
 }
 
+export function forgotPassword(email) {
+  return requestJson("/api/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
+}
+
+export function verifyOTP(email, otp) {
+  return requestJson("/api/auth/verify-otp", { method: "POST", body: JSON.stringify({ email, otp }) });
+}
+
+export function resetPassword(email, otp, newPassword) {
+  return requestJson("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ email, otp, newPassword }) });
+}
+
 export function getProducts() {
   return requestJson("/api/products");
 }

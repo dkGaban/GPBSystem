@@ -23,7 +23,7 @@
     <div class="auth-card auth-card-modern relative z-10">
       <!-- <div class="auth-illustration-placeholder" aria-label="Reserved space for a future logo or illustration">Logo / illustration</div> -->
       <div class="auth-signin-icon"><i class="fa-solid fa-arrow-up-right-from-square"></i></div>
-      <div class="auth-intro"><h1>Sign in</h1><p>Welcome back. Enter your details to continue.</p></div>
+      <div class="auth-intro"><h1 id="authHeading">Sign in</h1><p id="authSubtext">Welcome back. Enter your details to continue.</p></div>
 
       <div class="auth-tabs">
         <button class="auth-tab active" data-auth-tab="login">Login</button>
@@ -39,7 +39,7 @@
           <span>Password</span>
           <div class="password-control"><input id="loginPassword" type="password" required /><button type="button" id="togglePassword">Show</button></div>
         </label>
-        <a class="forgot-link" href="#">Forgot password?</a>
+        <a class="forgot-link" href="#" id="forgotPasswordLink">Forgot password?</a>
         <button type="submit" class="primary-button w-full">Login</button>
       </form>
 
@@ -104,6 +104,44 @@
   </section>
 
   <div id="toast" class="toast hidden"></div>
+
+  <div id="forgotPasswordModal" class="modal hidden">
+    <section class="modal-card">
+      <div class="modal-header">
+        <h3>Reset your password</h3>
+        <button type="button" class="icon-button" data-close><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <div id="forgotStep1" class="auth-form">
+        <p class="form-note">Enter the email address associated with your account and we'll send you a 6-digit verification code.</p>
+        <label class="form-field"><span>Email</span><input id="forgotEmail" type="email" placeholder="you@example.com" required /></label>
+        <p id="forgotStep1Error" class="field-error hidden"></p>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button type="button" class="primary-button" id="forgotSendCode">Send code</button></div>
+      </div>
+
+      <div id="forgotStep2" class="auth-form hidden">
+        <p class="form-note">Enter the 6-digit code sent to your email.</p>
+        <label class="form-field"><span>Verification code</span><input id="forgotOTP" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required /></label>
+        <p id="forgotStep2Error" class="field-error hidden"></p>
+        <button type="button" class="link-button" id="forgotResend" disabled>Resend code <span id="forgotResendCountdown"></span></button>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button type="button" class="primary-button" id="forgotVerifyOTP">Verify</button></div>
+      </div>
+
+      <div id="forgotStep3" class="auth-form hidden">
+        <p class="form-note">Create a new password for your account.</p>
+        <label class="form-field"><span>New password</span><input id="forgotNewPassword" type="password" required /></label>
+        <label class="form-field"><span>Confirm new password</span><input id="forgotConfirmPassword" type="password" required /></label>
+        <p id="forgotStep3Error" class="field-error hidden"></p>
+        <div class="modal-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button type="button" class="primary-button" id="forgotResetPassword">Reset Password</button></div>
+      </div>
+
+      <div id="forgotStep4" class="auth-form hidden">
+        <p class="form-note" style="text-align:center;">Your password has been reset successfully. You can now log in with your new password.</p>
+        <div class="modal-actions" style="justify-content:center;"><button type="button" class="primary-button" data-close>Back to login</button></div>
+      </div>
+    </section>
+  </div>
+
   <script type="module" src="js/auth-page.js"></script>
 </body>
 </html>

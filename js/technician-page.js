@@ -22,7 +22,6 @@ async function init() {
   document.getElementById("techCompleteForm").addEventListener("submit", submitTechCompletion);
   document.getElementById("techCompleteExcessHPower").addEventListener("change", updateSuggestedPayment);
   document.getElementById("techCompleteExcessFeet").addEventListener("input", updateSuggestedPayment);
-  ensureProfileCityField();
   document.getElementById("profilePhone").addEventListener("input", () => validateProfilePhone());
   document.body.addEventListener("change", async (event) => {
     if (!event.target.matches("[data-job-status]")) return;
@@ -261,7 +260,6 @@ function renderProfile(item) {
   document.getElementById("profileName").value = item.name || "";
   document.getElementById("profilePhone").value = item.phoneNumber || "";
   document.getElementById("profileEmail").value = item.email || "";
-  document.getElementById("profileCity").value = item.city || inferServiceAreaCity(item.address);
   document.getElementById("profileAddress").value = item.address || "";
   document.getElementById("profilePhotoPreview").src = item.profilePhoto || defaultAvatar;
   document.getElementById("profilePhoto").value = "";
@@ -287,7 +285,6 @@ async function saveProfile(event) {
     name: document.getElementById("profileName").value.trim(),
     phoneNumber,
     email: document.getElementById("profileEmail").value.trim(),
-    city: document.getElementById("profileCity").value,
     address: document.getElementById("profileAddress").value.trim(),
     ...(photoInput.files?.[0] ? { profilePhoto: { name: photoInput.files[0].name, data: await fileToDataUrl(photoInput) } } : {})
   };
@@ -302,12 +299,13 @@ async function saveProfile(event) {
 
 function validateProfilePhone() { const input = document.getElementById("profilePhone"); input.value = input.value.replace(/\D/g, "").slice(0, 11); const valid = isValidPhilippineMobile(input.value); document.getElementById("profilePhoneError").classList.toggle("hidden", valid || !input.value); input.setCustomValidity(valid ? "" : "Enter a valid 11-digit PH phone number starting with 09."); return valid; }
 
-function ensureProfileCityField() { const field = document.createElement("label"); field.className = "form-field"; field.innerHTML = `<span>Service area city</span><select id="profileCity" required><option value="">Select city/municipality</option>${["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].map((city) => `<option>${city}</option>`).join("")}</select>`; document.getElementById("profileAddress").closest("label").before(field); }
-function inferServiceAreaCity(address) { const value = String(address || "").toLowerCase(); return ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].find((city) => value.includes(city.toLowerCase())) || ""; }
+
 
 function jobRow(booking) {
   return `<tr><td>${booking.id}</td><td>${escapeHtml(booking.customer)}</td><td>${escapeHtml(booking.service)}${renderUnitDetailsMarkup(booking.units)}${renderUnitPhotosMarkup(booking.units)}</td><td>${escapeHtml(booking.address || [booking.scheduleDate, booking.scheduleTime].filter(Boolean).join(" "))}<br /><button type="button" class="tiny-button secondary-button" data-view-map="${booking.id}">View on map</button></td><td>${statusBadge(booking.status)}${booking.status === "Unable to Complete" && booking.unableToCompleteReason ? `<small class="job-reason">Reason: ${escapeHtml(booking.unableToCompleteReason)}</small>` : ""}${booking.chargeStatus === "Pending" ? `<small class="job-reason">Charges submitted — awaiting admin approval (${peso(booking.chargeProposedTotal)})</small><small class="job-reason">Payment can't be recorded until charges are approved.</small>` : ""}${booking.chargeStatus === "Approved" ? `<small class="job-reason">Charges approved</small>` : ""}${booking.chargeStatus === "Rejected" ? `<small class="job-reason">Extra charges rejected — final amount is the booked estimate</small>` : ""}${booking.paymentId ? `<small class="job-reason">Payment recorded</small>` : ""}</td><td><select data-job-status="${booking.id}"><option ${booking.status === "Scheduled" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>Scheduled</option><option ${booking.status === "In Progress" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>In Progress</option><option ${booking.status === "Completed" ? "selected" : ""}>Completed</option><option ${booking.status === "Unable to Complete" ? "selected" : ""} ${booking.status === "Completed" ? "disabled" : ""}>Unable to Complete</option></select></td></tr>`;
 }
+
+let techBookingMap = null;
 
 function openTechBookingMap(id) {
   const booking = bookings.find((item) => String(item.id) === String(id));
@@ -321,6 +319,7 @@ function openTechBookingMap(id) {
     openModal("techMapModal");
     return;
   }
+  container.classList.remove("hidden");
   addressText.textContent = booking.address || "No address text provided.";
   openModal("techMapModal");
   requestAnimationFrame(() => {

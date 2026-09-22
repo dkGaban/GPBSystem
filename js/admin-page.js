@@ -149,7 +149,7 @@ function renderServices() {
 
 function renderTechnicians() {
   document.getElementById("techniciansBody").innerHTML = technicians.length
-    ? technicians.map((tech) => `<tr><td>${tech.id}</td><td>${escapeHtml(tech.name)}</td><td>${escapeHtml(tech.phoneNumber)}</td><td>${escapeHtml(tech.email)}</td><td>${escapeHtml(tech.specialty)}</td><td>${statusBadge(tech.status)}</td><td><button class="tiny-button secondary-button" data-edit-technician="${tech.id}">Edit</button><button class="tiny-button danger-button" data-delete-technician="${tech.id}">Delete</button></td></tr>`).join("")
+    ? technicians.map((tech) => `<tr><td>${tech.id}</td><td>${escapeHtml(tech.name)}</td><td>${escapeHtml(tech.phoneNumber)}</td><td>${escapeHtml(tech.email)}</td><td>${escapeHtml(tech.address || "—")}</td><td>${escapeHtml(tech.specialty)}</td><td>${statusBadge(tech.status)}</td><td><button class="tiny-button secondary-button" data-edit-technician="${tech.id}">Edit</button><button class="tiny-button danger-button" data-delete-technician="${tech.id}">Delete</button></td></tr>`).join("")
     : `<tr><td colspan="7" class="text-center text-slate-500">No technicians yet.</td></tr>`;
 }
 
@@ -422,6 +422,7 @@ function openBookingMap(id) {
     openModal("mapModal");
     return;
   }
+  container.classList.remove("hidden");
   addressText.textContent = booking.address || "No address text provided.";
   openModal("mapModal");
   requestAnimationFrame(() => {

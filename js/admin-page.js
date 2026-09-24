@@ -373,7 +373,7 @@ function togglePricingSettings() {
 async function handleClick(event) {
   const button = event.target.closest("button");
   if (!button) return;
-  if (button.dataset.open) { if (button.dataset.open === "productModal") prepareProductForm(); return openModal(button.dataset.open); }
+  if (button.dataset.open) { if (button.dataset.open === "productModal") prepareProductForm(); if (button.dataset.open === "serviceModal") prepareServiceForm(); return openModal(button.dataset.open); }
   if (button.dataset.approve) return changeBooking(button.dataset.approve, "Approved");
   if (button.dataset.reject) return changeBooking(button.dataset.reject, "Rejected");
   if (button.dataset.viewMap) return openBookingMap(button.dataset.viewMap);
@@ -691,6 +691,18 @@ function ensureAdminCityFields() {
 }
 
 function inferServiceAreaCity(address) { const value = String(address || "").toLowerCase(); return ["San Fernando", "Naga", "Minglanilla", "Talisay City", "Cebu City", "Mandaue City", "Consolacion", "Liloan", "Compostela", "Danao City"].find((city) => value.includes(city.toLowerCase())) || ""; }
+
+function prepareServiceForm() {
+  $("serviceForm").reset();
+  $("serviceId").value = "";
+  $("serviceExistingImage").value = "";
+  $("newTierHPower").value = "";
+  $("newTierUnitType").value = "";
+  $("newTierAmount").value = "";
+  $("servicePriceTiersPanel")?.classList.add("hidden");
+  const list = $("servicePriceTiersList");
+  if (list) list.innerHTML = "";
+}
 
 async function prepareProductForm() {
   const brandSelect = $("productBrand");

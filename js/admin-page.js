@@ -465,10 +465,6 @@ async function deleteRecord(type, id) {
 }
 
 function openModal(id) {
-  if (id === "serviceModal" && !$("serviceId").value) {
-    $("servicePriceTiersPanel")?.classList.add("hidden");
-    if ($("servicePriceTiersList")) $("servicePriceTiersList").innerHTML = "";
-  }
   document.getElementById(id).classList.remove("hidden");
 }
 
@@ -699,9 +695,9 @@ function prepareServiceForm() {
   $("newTierHPower").value = "";
   $("newTierUnitType").value = "";
   $("newTierAmount").value = "";
-  $("servicePriceTiersPanel")?.classList.add("hidden");
+  $("servicePriceTiersPanel")?.classList.remove("hidden");
   const list = $("servicePriceTiersList");
-  if (list) list.innerHTML = "";
+  if (list) list.innerHTML = '<p class="empty-note">No optional price tiers yet.</p>';
 }
 
 async function prepareProductForm() {

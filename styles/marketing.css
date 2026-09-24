@@ -18,6 +18,9 @@
 }
 
 .website-nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -116,7 +119,7 @@
 }
 
 .marketing-section {
-  scroll-margin-top: 20px;
+  scroll-margin-top: 88px;
   padding-top: 30px !important;
   padding-bottom: 30px !important;
 }

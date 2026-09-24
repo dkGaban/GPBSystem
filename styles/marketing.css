@@ -4,14 +4,15 @@
    ============================================ */
 
 .website-shell {
-  display: block;
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
   border: 0;
   background: #f3f7fc;
 }
 
 .website-shell .portal-main {
-  display: block;
+  flex: 1 0 auto;
   min-width: 0;
   background: #f3f7fc;
 }
@@ -108,6 +109,10 @@
   margin: 0 auto;
   padding-right: clamp(20px, 5vw, 72px);
   padding-left: clamp(20px, 5vw, 72px);
+}
+
+#bookingsTab .page-heading {
+  padding-top: 24px;
 }
 
 .marketing-section {

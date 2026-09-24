@@ -121,7 +121,7 @@
 
       <div id="forgotStep2" class="auth-form hidden">
         <p class="form-note">Enter the 6-digit code sent to your email.</p>
-        <label class="form-field"><span>Verification code</span><input id="forgotOTP" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="000000" required /></label>
+        <label class="form-field"><span>Verification code</span><input id="forgotOTP" type="text" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" placeholder="000000" required /></label>
         <p id="forgotStep2Error" class="field-error hidden"></p>
         <button type="button" class="link-button" id="forgotResend" disabled>Resend code <span id="forgotResendCountdown"></span></button>
         <div class="modal-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button type="button" class="primary-button" id="forgotVerifyOTP">Verify</button></div>

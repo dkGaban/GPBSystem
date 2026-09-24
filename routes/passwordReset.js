@@ -16,19 +16,21 @@ module.exports = function registerPasswordResetRoutes(app, { getPool, sql, authL
       const existing = await pool.request().input("Email", sql.NVarChar(150), email).query("SELECT TOP 1 Id FROM Users WHERE Email = @Email");
       if (!existing.recordset.length) return res.json(GENERIC_SUCCESS);
 
-      const recent = await pool.request().input("Email", sql.NVarChar(150), email).query("SELECT TOP 1 CreatedAt FROM PasswordResetOTPs WHERE Email = @Email AND Used = 0 ORDER BY CreatedAt DESC");
+      const recent = await pool.request().input("Email", sql.NVarChar(150), email).query("SELECT TOP 1 DATEDIFF(SECOND, CreatedAt, GETDATE()) AS elapsed FROM PasswordResetOTPs WHERE Email = @Email AND Used = 0 ORDER BY CreatedAt DESC");
       if (recent.recordset.length) {
-        const elapsed = (Date.now() - new Date(recent.recordset[0].CreatedAt).getTime()) / 1000;
+        const elapsed = recent.recordset[0].elapsed;
         if (elapsed < 60) return res.json(GENERIC_SUCCESS);
       }
 
+      await pool.request()
+        .input("Email", sql.NVarChar(150), email)
+        .query("UPDATE PasswordResetOTPs SET Used = 1 WHERE Email = @Email AND Used = 0");
+
       const otp = generateOTP();
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
       await pool.request()
         .input("Email", sql.NVarChar(150), email)
         .input("OTP", sql.NVarChar(10), otp)
-        .input("ExpiresAt", sql.DateTime, expiresAt)
-        .query("INSERT INTO PasswordResetOTPs (Email, OTP, ExpiresAt) VALUES (@Email, @OTP, @ExpiresAt)");
+        .query("INSERT INTO PasswordResetOTPs (Email, OTP, ExpiresAt) VALUES (@Email, @OTP, DATEADD(MINUTE, 5, GETDATE()))");
 
       const transport = createReminderTransport();
       await transport.sendMail({
@@ -46,6 +48,7 @@ module.exports = function registerPasswordResetRoutes(app, { getPool, sql, authL
     const email = normalizeEmail(req.body.email);
     const otp = String(req.body.otp || "").trim();
     if (!email || !otp) return res.status(400).json({ message: "Enter your email and the 6-digit code." });
+    if (!/^\d{6}$/.test(String(otp).trim())) return res.status(400).json({ message: "Verification code must be exactly 6 digits." });
     try {
       const pool = await getPool();
       const result = await pool.request()
@@ -62,6 +65,7 @@ module.exports = function registerPasswordResetRoutes(app, { getPool, sql, authL
     const otp = String(req.body.otp || "").trim();
     const newPassword = req.body.newPassword || "";
     if (!email || !otp || !newPassword) return res.status(400).json({ message: "Enter your email, the 6-digit code, and a new password." });
+    if (!/^\d{6}$/.test(String(otp).trim())) return res.status(400).json({ message: "Verification code must be exactly 6 digits." });
     if (!isStrongPassword(newPassword)) return res.status(400).json({ message: "Password must be at least 8 characters and include uppercase, lowercase, and a number." });
     try {
       const pool = await getPool();

@@ -126,6 +126,11 @@ document.querySelectorAll("#forgotPasswordModal [data-close]").forEach((btn) => 
   btn.addEventListener("click", closeForgotModal);
 });
 
+$("forgotOTP").addEventListener("input", () => {
+  const input = $("forgotOTP");
+  input.value = input.value.replace(/\D/g, "").slice(0, 6);
+});
+
 $("forgotSendCode").addEventListener("click", async () => {
   const email = $("forgotEmail").value.trim();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -144,17 +149,21 @@ $("forgotSendCode").addEventListener("click", async () => {
   } catch (error) {
     $("forgotStep1Error").textContent = error.message;
     $("forgotStep1Error").classList.remove("hidden");
+  } finally {
+    $("forgotSendCode").disabled = false;
   }
-  $("forgotSendCode").disabled = false;
 });
 
 $("forgotResend").addEventListener("click", async () => {
+  $("forgotResend").disabled = true;
   try {
     await forgotPassword(forgotEmail);
     startResendCooldown();
     toast("A new code has been sent.");
   } catch (error) {
     toast(error.message);
+  } finally {
+    if (!resendTimer) $("forgotResend").disabled = false;
   }
 });
 
@@ -176,8 +185,9 @@ $("forgotVerifyOTP").addEventListener("click", async () => {
   } catch (error) {
     $("forgotStep2Error").textContent = error.message;
     $("forgotStep2Error").classList.remove("hidden");
+  } finally {
+    $("forgotVerifyOTP").disabled = false;
   }
-  $("forgotVerifyOTP").disabled = false;
 });
 
 $("forgotResetPassword").addEventListener("click", async () => {
